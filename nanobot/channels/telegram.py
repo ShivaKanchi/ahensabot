@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
+from typing import TYPE_CHECKING
+
 from loguru import logger
 from telegram import BotCommand, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -13,6 +16,9 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import TelegramConfig
+
+if TYPE_CHECKING:
+    from nanobot.cron.service import CronService
 
 
 def _markdown_to_telegram_html(text: str) -> str:
@@ -92,6 +98,7 @@ class TelegramChannel(BaseChannel):
         BotCommand("start", "Start the bot"),
         BotCommand("new", "Start a new conversation"),
         BotCommand("help", "Show available commands"),
+        BotCommand("cron_job_list", "List scheduled jobs"),
     ]
     
     def __init__(
@@ -99,10 +106,12 @@ class TelegramChannel(BaseChannel):
         config: TelegramConfig,
         bus: MessageBus,
         groq_api_key: str = "",
+        cron_service: CronService | None = None,
     ):
         super().__init__(config, bus)
         self.config: TelegramConfig = config
         self.groq_api_key = groq_api_key
+        self.cron_service = cron_service
         self._app: Application | None = None
         self._chat_ids: dict[str, int] = {}  # Map sender_id to chat_id for replies
         self._typing_tasks: dict[str, asyncio.Task] = {}  # chat_id -> typing loop task
@@ -127,6 +136,7 @@ class TelegramChannel(BaseChannel):
         self._app.add_handler(CommandHandler("start", self._on_start))
         self._app.add_handler(CommandHandler("new", self._forward_command))
         self._app.add_handler(CommandHandler("help", self._forward_command))
+        self._app.add_handler(CommandHandler("cron_job_list", self._cron_list_command))
         
         # Add message handler for text, photos, voice, documents
         self._app.add_handler(
@@ -221,6 +231,43 @@ class TelegramChannel(BaseChannel):
             "Send me a message and I'll respond!\n"
             "Type /help to see available commands."
         )
+
+    async def _cron_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /cron-job-list command."""
+        if not update.message:
+            return
+
+        if not self.cron_service:
+            await update.message.reply_text("Cron service not available.")
+            return
+
+        jobs = self.cron_service.list_jobs(include_disabled=False)
+
+        if not jobs:
+            await update.message.reply_text("No scheduled jobs.")
+            return
+
+        lines = ["📅 <b>Scheduled Jobs</b>\n"]
+        for job in jobs:
+            # Format schedule
+            if job.schedule.kind == "every":
+                sched = f"every {(job.schedule.every_ms or 0) // 1000}s"
+            elif job.schedule.kind == "cron":
+                sched = job.schedule.expr or ""
+            else:
+                sched = "one-time"
+
+            # Format next run
+            next_run = "Unknown"
+            if job.state.next_run_at_ms:
+                next_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000))
+                next_run = next_time
+
+            lines.append(f"• <b>{job.name}</b> ({sched})")
+            lines.append(f"  Next: {next_run}")
+            lines.append("")
+
+        await update.message.reply_text("\n".join(lines), parse_mode="HTML")
     
     async def _forward_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Forward slash commands to the bus for unified handling in AgentLoop."""
