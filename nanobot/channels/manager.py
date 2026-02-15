@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from loguru import logger
 
@@ -11,6 +11,9 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import Config
+
+if TYPE_CHECKING:
+    from nanobot.cron.service import CronService
 
 
 class ChannelManager:
@@ -23,9 +26,10 @@ class ChannelManager:
     - Route outbound messages
     """
     
-    def __init__(self, config: Config, bus: MessageBus):
+    def __init__(self, config: Config, bus: MessageBus, cron_service: CronService | None = None):
         self.config = config
         self.bus = bus
+        self.cron_service = cron_service
         self.channels: dict[str, BaseChannel] = {}
         self._dispatch_task: asyncio.Task | None = None
         
@@ -42,6 +46,7 @@ class ChannelManager:
                     self.config.channels.telegram,
                     self.bus,
                     groq_api_key=self.config.providers.groq.api_key,
+                    cron_service=self.cron_service,
                 )
                 logger.info("Telegram channel enabled")
             except ImportError as e:
