@@ -876,5 +876,13 @@ def status():
                 console.print(f"{spec.label}: {'[green]✓[/green]' if has_key else '[dim]not set[/dim]'}")
 
 
+# ============================================================================
+# Data Commands
+# ============================================================================
+
+from nanobot.cli.data import data_app
+app.add_typer(data_app, name="data")
+
+
 if __name__ == "__main__":
     app()
