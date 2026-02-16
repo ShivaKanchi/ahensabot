@@ -194,7 +194,7 @@ class DiscordChannel(BaseChannel):
         if not sender_id or not channel_id:
             return
 
-        if not self.is_allowed(sender_id):
+        if not self.check_access(sender_id):
             return
 
         content_parts = [content] if content else []

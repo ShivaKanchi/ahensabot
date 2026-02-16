@@ -143,6 +143,10 @@ class SlackChannel(BaseChannel):
         channel_type = event.get("channel_type") or ""
 
         if not self._is_allowed(sender_id, chat_id, channel_type):
+            logger.warning(
+                f"Access denied for sender {sender_id} on channel {self.name}. "
+                f"Add them to allowFrom list in config to grant access."
+            )
             return
 
         if channel_type != "im" and not self._should_respond_in_channel(event_type, text, chat_id):

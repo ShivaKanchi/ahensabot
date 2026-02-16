@@ -364,6 +364,10 @@ class FeishuChannel(BaseChannel):
             chat_type = message.chat_type  # "p2p" or "group"
             msg_type = message.message_type
             
+            # Check authorization before processing
+            if not self.check_access(sender_id):
+                return
+
             # Add reaction to indicate "seen"
             await self._add_reaction(message_id, "THUMBSUP")
             

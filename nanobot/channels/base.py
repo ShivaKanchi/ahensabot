@@ -83,6 +83,21 @@ class BaseChannel(ABC):
                     return True
         return False
     
+    def check_access(self, sender_id: str) -> bool:
+        """
+        Check if a sender is allowed and log a warning if not.
+
+        Returns:
+            True if allowed, False otherwise.
+        """
+        if not self.is_allowed(sender_id):
+            logger.warning(
+                f"Access denied for sender {sender_id} on channel {self.name}. "
+                f"Add them to allowFrom list in config to grant access."
+            )
+            return False
+        return True
+
     async def _handle_message(
         self,
         sender_id: str,
@@ -103,11 +118,7 @@ class BaseChannel(ABC):
             media: Optional list of media URLs.
             metadata: Optional channel-specific metadata.
         """
-        if not self.is_allowed(sender_id):
-            logger.warning(
-                f"Access denied for sender {sender_id} on channel {self.name}. "
-                f"Add them to allowFrom list in config to grant access."
-            )
+        if not self.check_access(sender_id):
             return
         
         msg = InboundMessage(

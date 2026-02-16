@@ -246,6 +246,10 @@ class TelegramChannel(BaseChannel):
         if user.username:
             sender_id = f"{sender_id}|{user.username}"
         
+        # Check authorization before downloading media
+        if not self.check_access(sender_id):
+            return
+
         # Store chat_id for replies
         self._chat_ids[sender_id] = chat_id
         
