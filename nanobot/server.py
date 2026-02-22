@@ -158,7 +158,7 @@ class WebServer:
 
     async def _handle_status(self, request: web.Request) -> web.Response:
         channels_status = self.channel_manager.get_status()
-        cron_status = self.cron_service.status()
+        cron_status = await self.cron_service.status()
 
         return web.json_response({
             "channels": channels_status,
@@ -166,7 +166,7 @@ class WebServer:
         })
 
     async def _handle_cron(self, request: web.Request) -> web.Response:
-        jobs = self.cron_service.list_jobs(include_disabled=True)
+        jobs = await self.cron_service.list_jobs(include_disabled=True)
         # Convert to dict for JSON serialization
         jobs_data = []
         for j in jobs:

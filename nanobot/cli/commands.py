@@ -377,81 +377,6 @@ def gateway(
     # Create cron service first (callback set after agent creation)
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
-    # If user provided a `duty.md` in the workspace, parse and auto-install duties
-    try:
-        duty_file = config.workspace_path / "duty.md"
-        if duty_file.exists():
-            from nanobot.cron.types import CronSchedule
-            from croniter import croniter
-
-            raw = duty_file.read_text(encoding="utf-8")
-            # Parse simple blocks separated by blank lines. Each block: key: value lines
-            blocks = []
-            cur = {}
-            for line in raw.splitlines():
-                s = line.strip()
-                if not s:
-                    if cur:
-                        blocks.append(cur)
-                        cur = {}
-                    continue
-                if ":" in s:
-                    k, v = s.split(":", 1)
-                    cur[k.strip().lower()] = v.strip()
-            if cur:
-                blocks.append(cur)
-
-            existing_jobs = cron._load_store().jobs
-            existing_exprs = {(j.name, j.schedule.expr) for j in existing_jobs}
-
-            for idx, b in enumerate(blocks):
-                name = b.get("name") or b.get("id") or b.get("kind")
-                if not name:
-                    logger.warning(f"Duty block #{idx} missing 'name' field, skipping")
-                    continue
-
-                # allow multiple cron expressions separated by ','
-                cron_expr = b.get("cron") or b.get("schedule")
-                prompt_text = b.get("prompt") or b.get("message") or "How are you?"
-                duty_kind = b.get("type") or b.get("kind") or name
-
-                if cron_expr:
-                    # If user provided multiple cron expressions, create multiple jobs
-                    for expr in [e.strip() for e in cron_expr.split(",") if e.strip()]:
-                        # Check per-expression to allow same duty at different times
-                        if (name, expr) in existing_exprs:
-                            logger.debug(
-                                f"Duty '{name}' with expr '{expr}' already installed, skipping"
-                            )
-                            continue
-
-                        # Validate cron expression early
-                        try:
-                            croniter(expr)  # Validate syntax
-                        except (ValueError, KeyError) as e:
-                            logger.error(
-                                f"Invalid cron expression '{expr}' in duty '{name}': {e}"
-                            )
-                            continue
-
-                        job = cron.add_job(
-                            name=name,
-                            schedule=CronSchedule(kind="cron", expr=expr),
-                            message=prompt_text,
-                            deliver=False,
-                        )
-                        # mark payload with duty kind so handler knows how to log replies
-                        try:
-                            job.payload.kind = f"duty:{duty_kind}"
-                        except Exception:
-                            pass
-                else:
-                    # no schedule -> skip automated job but log it
-                    logger.debug(f"Duty '{name}' has no cron schedule, skipping")
-    except FileNotFoundError:
-        pass  # duty.md doesn't exist, no duties to install
-    except Exception as e:
-        logger.error(f"Failed to parse duty.md: {e}")
 
     # Create agent with cron service
     agent = AgentLoop(
@@ -558,13 +483,89 @@ def gateway(
     # Create web server
     server = WebServer(cron_service=cron, channel_manager=channels, port=port)
 
-    cron_status = cron.status()
-    if cron_status["jobs"] > 0:
-        console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
-
     console.print(f"[green]✓[/green] Heartbeat: every 30m")
 
     async def run():
+        # If user provided a `duty.md` in the workspace, parse and auto-install duties
+        try:
+            duty_file = config.workspace_path / "duty.md"
+            if duty_file.exists():
+                from nanobot.cron.types import CronSchedule
+                from croniter import croniter
+
+                raw = duty_file.read_text(encoding="utf-8")
+                # Parse simple blocks separated by blank lines. Each block: key: value lines
+                blocks = []
+                cur = {}
+                for line in raw.splitlines():
+                    s = line.strip()
+                    if not s:
+                        if cur:
+                            blocks.append(cur)
+                            cur = {}
+                        continue
+                    if ":" in s:
+                        k, v = s.split(":", 1)
+                        cur[k.strip().lower()] = v.strip()
+                if cur:
+                    blocks.append(cur)
+
+                existing_jobs = await cron.list_jobs(include_disabled=True)
+                existing_exprs = {(j.name, j.schedule.expr) for j in existing_jobs}
+
+                for idx, b in enumerate(blocks):
+                    name = b.get("name") or b.get("id") or b.get("kind")
+                    if not name:
+                        logger.warning(f"Duty block #{idx} missing 'name' field, skipping")
+                        continue
+
+                    # allow multiple cron expressions separated by ','
+                    cron_expr = b.get("cron") or b.get("schedule")
+                    prompt_text = b.get("prompt") or b.get("message") or "How are you?"
+                    duty_kind = b.get("type") or b.get("kind") or name
+
+                    if cron_expr:
+                        # If user provided multiple cron expressions, create multiple jobs
+                        for expr in [e.strip() for e in cron_expr.split(",") if e.strip()]:
+                            # Check per-expression to allow same duty at different times
+                            if (name, expr) in existing_exprs:
+                                logger.debug(
+                                    f"Duty '{name}' with expr '{expr}' already installed, skipping"
+                                )
+                                continue
+
+                            # Validate cron expression early
+                            try:
+                                croniter(expr)  # Validate syntax
+                            except (ValueError, KeyError) as e:
+                                logger.error(
+                                    f"Invalid cron expression '{expr}' in duty '{name}': {e}"
+                                )
+                                continue
+
+                            job = await cron.add_job(
+                                name=name,
+                                schedule=CronSchedule(kind="cron", expr=expr),
+                                message=prompt_text,
+                                deliver=False,
+                            )
+                            # mark payload with duty kind so handler knows how to log replies
+                            try:
+                                job.payload.kind = f"duty:{duty_kind}"
+                            except Exception:
+                                pass
+                    else:
+                        # no schedule -> skip automated job but log it
+                        logger.debug(f"Duty '{name}' has no cron schedule, skipping")
+        except FileNotFoundError:
+            pass  # duty.md doesn't exist, no duties to install
+        except Exception as e:
+            logger.error(f"Failed to parse duty.md: {e}")
+
+        cron_status = await cron.status()
+        if cron_status["jobs"] > 0:
+            console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
+
         try:
             await cron.start()
             await heartbeat.start()
@@ -872,7 +873,7 @@ def cron_list(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
 
-    jobs = service.list_jobs(include_disabled=all)
+    jobs = asyncio.run(service.list_jobs(include_disabled=all))
 
     if not jobs:
         console.print("No scheduled jobs.")
@@ -965,14 +966,17 @@ def cron_add(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
 
-    job = service.add_job(
-        name=name,
-        schedule=schedule,
-        message=message,
-        deliver=deliver,
-        to=to,
-        channel=channel,
-    )
+    async def add():
+        return await service.add_job(
+            name=name,
+            schedule=schedule,
+            message=message,
+            deliver=deliver,
+            to=to,
+            channel=channel,
+        )
+
+    job = asyncio.run(add())
 
     console.print(f"[green]✓[/green] Added job '{job.name}' ({job.id})")
 
@@ -988,7 +992,7 @@ def cron_remove(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
 
-    if service.remove_job(job_id):
+    if asyncio.run(service.remove_job(job_id)):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
         console.print(f"[red]Job {job_id} not found[/red]")
@@ -1006,7 +1010,7 @@ def cron_enable(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
 
-    job = service.enable_job(job_id, enabled=not disable)
+    job = asyncio.run(service.enable_job(job_id, enabled=not disable))
     if job:
         status = "disabled" if disable else "enabled"
         console.print(f"[green]✓[/green] Job '{job.name}' {status}")

@@ -285,7 +285,7 @@ class TelegramChannel(BaseChannel):
             await update.message.reply_text("Cron service not available.")
             return
 
-        jobs = self.cron_service.list_jobs(include_disabled=False)
+        jobs = await self.cron_service.list_jobs(include_disabled=False)
 
         if not jobs:
             await update.message.reply_text("No scheduled jobs.")
