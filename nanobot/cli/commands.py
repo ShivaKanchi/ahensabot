@@ -46,7 +46,7 @@ def _flush_pending_tty_input() -> None:
         fd = sys.stdin.fileno()
         if not os.isatty(fd):
             return
-    except Exception:
+    except (OSError, ValueError, AttributeError):
         return
 
     try:
