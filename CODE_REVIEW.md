@@ -439,3 +439,183 @@ MAX_ENTRIES_PER_HOUR = 50  # Config param
 10. Implement archival for large files 🔄 TODO
 11. Add rate limiting 🔄 TODO
 12. Improve exception messages 🔄 TODO
+
+---
+
+## Enhancement Opportunities 🚀
+
+### A. CLI Commands & User Interface
+
+- [ ] **Duty Management**: `nanobot duty list/enable/disable/delete <name>`
+- [ ] **Duty Viewer**: `nanobot duty show <name>` — Display duty schedule, next run time, last run status
+- [ ] **Duty Editor**: `nanobot duty edit <name>` — Interactive editor for duty.md
+- [ ] **Duty Validator**: `nanobot duty validate` — Check syntax, cron expressions, and conflicts
+- [ ] **Duty Dry-Run**: `nanobot duty run --dry-run <name>` — Test duty without logging
+
+### B. Data Analytics & Reporting
+
+- [ ] **Mood Summary**: `nanobot summary mood --period week` — Show mood trends, avg rating
+- [ ] **Hydration Report**: `nanobot summary hydration --period day` — Daily/weekly/monthly totals
+- [ ] **Gut Analysis**: `nanobot summary gut --period month` — Food patterns, meal frequency
+- [ ] **Diary Digest**: `nanobot summary diary --recent 7` — Last 7 entries
+- [ ] **Export Data**: `nanobot export --type mood --format csv/json` — Export to CSV/JSON
+- [ ] **Data Dashboard**: Web UI to visualize mood, hydration, trends over time
+
+### C. Data Quality & Persistence
+
+- [ ] **Automatic Archival**: Move old entries to `{file}.archive.md` after N entries
+- [ ] **Data Backup**: Auto-backup `workspace/memory/` daily to `~/.nanobot/backups/`
+- [ ] **Data Import**: `nanobot import --from csv/json` — Bulk import duty data
+- [ ] **Data Validation**: Verify file integrity on startup; fix corrupted entries
+- [ ] **Data Encryption**: Optional encryption for sensitive diary/mood entries (AES-256)
+- [ ] **Duty History/Audit**: Track when duties were created/modified/deleted
+
+### D. Configuration & Flexibility
+
+- [ ] **YAML Support**: Parse `duty.yaml` in addition to `duty.md` for complex configs
+- [ ] **Duty Templates**: Built-in templates (health, fitness, journaling, productivity)
+- [ ] **Per-Duty Config**: Add `output_file`, `timezone`, `language` per duty
+- [ ] **Duty Groups**: Group related duties and control them together
+- [ ] **Duty Aliases**: Create shortcuts (`mood` → `mood-check-full`)
+- [ ] **Duty Inheritance**: Allow `extends: base-duty` in block definitions
+
+### E. Notifications & Alerts
+
+- [ ] **Push Notifications**: Send reminders via system notifications (desktop/mobile)
+- [ ] **Email Alerts**: Optional email summaries (daily/weekly mood, hydration goals)
+- [ ] **SMS Reminders**: Send duty prompts via SMS (if SMS gateway configured)
+- [ ] **Missed Duty Alert**: Notify if duty wasn't completed by end of day
+- [ ] **Customizable Reminders**: "5 mins before duty" notification
+
+### F. Advanced Features
+
+- [ ] **Multi-User Support**: Different duty tracking per user (shared workspace)
+- [ ] **Duty Workflow**: Create multi-step duties (e.g., mood check → follow-up questions)
+- [ ] **Conditional Logic**: `if mood < 5 then send_alert()`
+- [ ] **Machine Learning**: Mood prediction, hydration optimization suggestions
+- [ ] **Integration with Health APIs**: Sync with Apple Health, Google Fit, Fitbit
+- [ ] **Duty Scheduling Optimizer**: Auto-suggest best duty times based on patterns
+
+### G. Testing & Quality Assurance
+
+- [ ] **Unit Tests**: Test duty detection (mood, gut, hydration, diary matchers)
+- [ ] **Integration Tests**: Full flow from cron trigger → logging → reporting
+- [ ] **Performance Tests**: Load test with 1000+ daily entries in memory files
+- [ ] **Edge Case Tests**: Test with special characters, emojis, long entries, Unicode
+- [ ] **Regression Tests**: Ensure fixes don't break duty functionality
+- [ ] **Test Coverage**: Achieve >90% code coverage for duty modules
+
+### H. Performance Optimizations
+
+- [ ] **Regex Pre-compilation**: Move all regexes to module-level constants
+- [ ] **File I/O Optimization**: Use memory-mapped files for large duty logs
+- [ ] **Caching Layer**: Cache recent entries (e.g., today's mood) in memory
+- [ ] **Batch Writing**: Collect multiple duty entries and write in batches
+- [ ] **Index Files**: Create `.index.json` for O(1) lookup instead of O(n) file scans
+- [ ] **Lazy Loading**: Load memory files on-demand, not at startup
+
+### I. Documentation & Help
+
+- [ ] **In-App Help**: `nanobot duty help <topic>` — Contextual help for duty features
+- [ ] **Video Tutorials**: Setup guide, best practices, tips
+- [ ] **FAQ Expansion**: Common questions about duty tracking
+- [ ] **API Documentation**: Public API for accessing duty data programmatically
+- [ ] **Example Configs**: Pre-built `duty.md` examples for different use cases
+- [ ] **Troubleshooting Guide**: Common issues and solutions
+
+### J. Security & Privacy
+
+- [ ] **Input Sanitization**: Sanitize diary content before logging (remove PII)
+- [ ] **Rate Limiting**: Max N duty entries per hour/day per user
+- [ ] **Access Control**: Restrict who can read/modify duty data
+- [ ] **Audit Logging**: Track all duty operations (create, update, delete)
+- [ ] **Path Validation**: Prevent path traversal attacks in custom duty names
+- [ ] **Secure Backup**: Encrypt backups with GPG or similar
+
+### K. Maintenance & DevOps
+
+- [ ] **Docker Support**: Add duty system to Docker image
+- [ ] **Monitoring**: Metrics for duty execution success rate, latency
+- [ ] **Logging Levels**: `--debug` flag for detailed duty processing logs
+- [ ] **Version Migration**: Handle duty.md format changes across nanobot versions
+- [ ] **Cleanup Scripts**: Remove old/duplicate entries, optimize file sizes
+- [ ] **Health Check**: Verify all duty files are healthy (not corrupted)
+
+### L. Community & Extensibility
+
+- [ ] **Plugin System**: Allow custom duty types via plugins
+- [ ] **Custom Detectors**: Let users define regex patterns for duty detection
+- [ ] **Webhook Support**: POST duty events to external services
+- [ ] **IFTTT Integration**: `if duty(mood) then send_slack_message()`
+- [ ] **Community Duty Packs**: Share pre-built duty configs (GitHub/registry)
+
+### M. Bot Personality & Tone
+
+- [ ] **Tone Configuration**: Add `tone:` setting to bot config (friendly, professional, humorous, casual)
+- [ ] **Dynamic Tone Switching**: Change bot tone in real-time without restart
+- [ ] **Duty Message Customization**: Customize greeting/farewell messages per duty type
+- [ ] **Response Templates**: Create tone-specific response templates for duty confirmations
+- [ ] **Emoji Support**: Add emoji customization based on tone (professional: none, friendly: 😊)
+- [ ] **Personality Traits**: Define bot personality (patience level, verbosity, humor style)
+- [ ] **Tone Per-Channel**: Different tones for different channels (Slack vs WhatsApp)
+- [ ] **Language Support**: Add multi-language support with tone-aware translations
+
+---
+
+## Testing Checklist
+
+### Unit Tests Needed
+
+```
+tests/test_duty_detection.py
+  ✓ test_mood_detection_with_rating()
+  ✓ test_mood_detection_without_rating()
+  ✓ test_gut_detection_with_keywords()
+  ✓ test_hydration_parsing_ml_to_liters()
+  ✓ test_hydration_parsing_oz_to_liters()
+  ✓ test_diary_date_grouping()
+  ✓ test_false_positive_prevention()
+  ✓ test_edge_cases_unicode_emojis()
+
+tests/test_duty_parsing.py
+  ✓ test_parse_valid_duty_md()
+  ✓ test_parse_invalid_cron_expression()
+  ✓ test_parse_missing_required_fields()
+  ✓ test_parse_multiple_cron_expressions()
+  ✓ test_parse_duplicate_duty_detection()
+
+tests/test_duty_integration.py
+  ✓ test_duty_cron_job_execution()
+  ✓ test_duty_logging_to_file()
+  ✓ test_duty_delivery_to_channel()
+  ✓ test_end_to_end_flow()
+```
+
+### Manual Testing
+
+- [ ] Test with real Telegram/WhatsApp delivery
+- [ ] Test with years of data in memory files
+- [ ] Test concurrent duty executions
+- [ ] Test with corrupted duty files (recovery)
+- [ ] Test on different timezones
+- [ ] Test on Windows/Mac/Linux
+
+---
+
+## Technical Debt
+
+1. **Missing Logging**: Add `logger.debug()` calls for troubleshooting duty issues
+2. **Type Hints**: Add full type annotations to `loop.py` and `commands.py` duty functions
+3. **Documentation**: Add docstrings to all duty-related functions
+4. **Code Organization**: Consider extracting duty logic into separate `nanobot/duty/` module
+5. **Constants**: Define duty-related constants in `nanobot/duty/constants.py`
+6. **Error Messages**: Improve error messages for users (currently too technical)
+
+---
+
+## Post-MVP Roadmap (v2.0+)
+
+**Q2 2026**: Land Phase 2 & 3 optimizations + CLI improvements
+**Q3 2026**: Analytics, reporting, Dashboard UI
+**Q4 2026**: Advanced ML features, multi-user support, integrations
+**2027+**: Plugin system, community features, enterprise support
