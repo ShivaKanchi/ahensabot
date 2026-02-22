@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
+from loguru import logger
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
@@ -381,6 +382,7 @@ def gateway(
         duty_file = config.workspace_path / "duty.md"
         if duty_file.exists():
             from nanobot.cron.types import CronSchedule
+            from croniter import croniter
 
             raw = duty_file.read_text(encoding="utf-8")
             # Parse simple blocks separated by blank lines. Each block: key: value lines
@@ -399,23 +401,39 @@ def gateway(
             if cur:
                 blocks.append(cur)
 
-            existing = [j.name for j in cron._load_store().jobs]
-            for b in blocks:
+            existing_jobs = cron._load_store().jobs
+            existing_exprs = {(j.name, j.schedule.expr) for j in existing_jobs}
+
+            for idx, b in enumerate(blocks):
                 name = b.get("name") or b.get("id") or b.get("kind")
                 if not name:
+                    logger.warning(f"Duty block #{idx} missing 'name' field, skipping")
                     continue
+
                 # allow multiple cron expressions separated by ','
                 cron_expr = b.get("cron") or b.get("schedule")
                 prompt_text = b.get("prompt") or b.get("message") or "How are you?"
                 duty_kind = b.get("type") or b.get("kind") or name
 
-                # Skip if already installed
-                if name in existing:
-                    continue
-
                 if cron_expr:
                     # If user provided multiple cron expressions, create multiple jobs
                     for expr in [e.strip() for e in cron_expr.split(",") if e.strip()]:
+                        # Check per-expression to allow same duty at different times
+                        if (name, expr) in existing_exprs:
+                            logger.debug(
+                                f"Duty '{name}' with expr '{expr}' already installed, skipping"
+                            )
+                            continue
+
+                        # Validate cron expression early
+                        try:
+                            croniter(expr)  # Validate syntax
+                        except (ValueError, KeyError) as e:
+                            logger.error(
+                                f"Invalid cron expression '{expr}' in duty '{name}': {e}"
+                            )
+                            continue
+
                         job = cron.add_job(
                             name=name,
                             schedule=CronSchedule(kind="cron", expr=expr),
@@ -428,10 +446,12 @@ def gateway(
                         except Exception:
                             pass
                 else:
-                    # no schedule -> skip automated job
-                    continue
-    except Exception:
-        pass
+                    # no schedule -> skip automated job but log it
+                    logger.debug(f"Duty '{name}' has no cron schedule, skipping")
+    except FileNotFoundError:
+        pass  # duty.md doesn't exist, no duties to install
+    except Exception as e:
+        logger.error(f"Failed to parse duty.md: {e}")
 
     # Create agent with cron service
     agent = AgentLoop(
@@ -479,20 +499,17 @@ def gateway(
                 )
             else:
                 # No external delivery configured — record that a prompt was scheduled
+                # Use cached workspace path instead of reloading config
                 try:
-                    from nanobot.config.loader import load_config
-
-                    cfg = load_config()
-                    workspace = cfg.workspace_path
-                    duty_dir = workspace / "memory"
+                    duty_dir = config.workspace_path / "memory"
                     duty_dir.mkdir(parents=True, exist_ok=True)
                     report_file = duty_dir / "dutyreport.md"
                     ts = datetime.utcnow().isoformat() + "Z"
                     entry = f"- {ts} | job:{job.name} | prompt: {job.payload.message or ''}\n"
                     with report_file.open("a", encoding="utf-8") as f:
                         f.write(entry)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to log duty prompt for job '{job.name}': {e}")
             return None
 
         # Non-duty: run through the agent as before

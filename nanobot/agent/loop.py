@@ -319,9 +319,13 @@ class AgentLoop:
                     content="Diary entry saved.",
                 )
 
-            # Mood: detect explicit rating (0-10) or '/10' mention
+            # Mood: detect explicit rating (0-10) with word boundary + keyword "mood" OR standalone /10
             m = re.search(r"\b([0-9]|10)(?:/10)?\b", text)
-            if "mood" in low or "/10" in text or m:
+            has_mood_keyword = bool(
+                re.search(r"\bmood\b", low)
+            )  # Word boundary for 'mood'
+
+            if (has_mood_keyword and m) or ("/10" in text):
                 rating = m.group(1) if m else "N/A"
                 mood_file = memory_dir / "mood.md"
                 ts = datetime.utcnow().isoformat() + "Z"
@@ -351,14 +355,16 @@ class AgentLoop:
                 )
 
             # Hydration: detect numbers + ml/l/L or keywords 'water'/'drank'
-            if (
-                "water" in low
-                or "drank" in low
-                or re.search(r"\b[0-9]+(?:\.[0-9]+)?\s*(ml|l|litre|liters|oz)?\b", low)
-            ):
-                # find all amounts and sum (attempt basic ml/l parsing)
+            # Only match if has keyword OR has unit with number (not bare numbers)
+            has_hydration_keyword = "water" in low or "drank" in low
+            has_unit_with_number = re.search(
+                r"\b([0-9]+(?:\.[0-9]+)?)\s+(ml|litre?s?|ltrs|oz|l)\b", low
+            )
+
+            if has_hydration_keyword or has_unit_with_number:
+                # find all amounts and sum (require unit to avoid false positives)
                 amounts = re.findall(
-                    r"([0-9]+(?:\.[0-9]+)?)\s*(ml|l|litre|liters|ltrs|oz)?", low
+                    r"([0-9]+(?:\.[0-9]+)?)\s+(ml|litre?s?|ltrs|oz|l)\b", low
                 )
                 total_l = 0.0
                 for amt, unit in amounts:
@@ -382,12 +388,13 @@ class AgentLoop:
                 entry = f"- {ts} | raw: {text} | liters: {total_l:.3f}\n"
                 with hydration_file.open("a", encoding="utf-8") as f:
                     f.write(entry)
-                # Compute today's total
+                # Compute today's total (only from today's entries)
                 today = datetime.utcnow().date().isoformat()
                 total_today = 0.0
                 try:
+                    # Sum only TODAY's entries from file (removed erroneous "or True")
                     for line in hydration_file.read_text(encoding="utf-8").splitlines():
-                        if today in line or True:
+                        if today in line and line.strip():  # Fixed: removed "or True"
                             m2 = re.search(r"liters: ([0-9]+\.[0-9]+)", line)
                             if m2:
                                 total_today += float(m2.group(1))
