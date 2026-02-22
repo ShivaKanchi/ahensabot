@@ -20,6 +20,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from nanobot import __version__, __logo__
 from nanobot.config.schema import Config
+from nanobot.utils.terminal import flush_input, get_terminal_settings, restore_terminal_settings
 
 app = typer.Typer(
     name="nanobot",
@@ -47,12 +48,8 @@ def _flush_pending_tty_input() -> None:
     except Exception:
         return
 
-    try:
-        import termios
-        termios.tcflush(fd, termios.TCIFLUSH)
+    if flush_input(fd):
         return
-    except Exception:
-        pass
 
     try:
         while True:
@@ -70,8 +67,7 @@ def _restore_terminal() -> None:
     if _SAVED_TERM_ATTRS is None:
         return
     try:
-        import termios
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, _SAVED_TERM_ATTRS)
+        restore_terminal_settings(sys.stdin.fileno(), _SAVED_TERM_ATTRS)
     except Exception:
         pass
 
@@ -82,8 +78,7 @@ def _init_prompt_session() -> None:
 
     # Save terminal state so we can restore it on exit
     try:
-        import termios
-        _SAVED_TERM_ATTRS = termios.tcgetattr(sys.stdin.fileno())
+        _SAVED_TERM_ATTRS = get_terminal_settings(sys.stdin.fileno())
     except Exception:
         pass
 
