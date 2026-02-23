@@ -439,6 +439,105 @@ class AgentLoop:
         if len(session.messages) > self.memory_window:
             asyncio.create_task(self._consolidate_memory(session))
 
+
+        # Quick command handling (slash commands) before calling the LLM
+        # Support: /note, /save, /sleep, /tasks, /cronjoblist
+        # if msg.content.strip().startswith("/"):
+        #     parts = msg.content.strip().split(None, 1)
+        #     cmd = parts[0].lower()
+        #     arg = parts[1] if len(parts) > 1 else ""
+
+        #     # /note or /save: persist a note as JSON under workspace/notes
+        #     if cmd in ("/note", "/save"):
+        #         try:
+        #             notes_dir = self.workspace / "notes"
+        #             notes_dir.mkdir(parents=True, exist_ok=True)
+        #             from datetime import datetime
+        #             ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+        #             file_name = f"{ts}.json"
+        #             file_path = notes_dir / file_name
+        #             data = {
+        #                 "date": datetime.now().isoformat(),
+        #                 "channel": msg.channel,
+        #                 "chat_id": msg.chat_id,
+        #                 "content": arg or msg.content,
+        #             }
+        #             import json as _json
+        #             file_path.write_text(_json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        #             return OutboundMessage(
+        #                 channel=msg.channel,
+        #                 chat_id=msg.chat_id,
+        #                 content=f"Saved note to {file_path.relative_to(self.workspace)}",
+        #             )
+        #         except Exception as e:
+        #             return OutboundMessage(
+        #                 channel=msg.channel,
+        #                 chat_id=msg.chat_id,
+        #                 content=f"Error saving note: {e}",
+        #             )
+
+        #     # /sleep <duration> - sleep for given seconds or 1m/2h formats
+        #     if cmd == "/sleep":
+        #         dur = arg.strip()
+        #         # parse simple duration formats like 10, 10s, 5m, 1h
+        #         def _parse_duration(s: str) -> int:
+        #             if not s:
+        #                 return 0
+        #             s = s.strip().lower()
+        #             try:
+        #                 if s.endswith("s"):
+        #                     return int(s[:-1])
+        #                 if s.endswith("m"):
+        #                     return int(s[:-1]) * 60
+        #                 if s.endswith("h"):
+        #                     return int(s[:-1]) * 3600
+        #                 return int(s)
+        #             except Exception:
+        #                 return 0
+
+        #         secs = _parse_duration(dur)
+        #         if secs <= 0:
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="Usage: /sleep <seconds|10s|5m|1h>")
+        #         # Inform user and sleep
+        #         try:
+        #             await asyncio.sleep(secs)
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=f"Slept for {secs} seconds.")
+        #         except Exception as e:
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=f"Sleep failed: {e}")
+
+        #     # /tasks - list files under workspace/tasks
+        #     if cmd == "/tasks":
+        #         tasks_dir = self.workspace / "tasks"
+        #         if not tasks_dir.exists():
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="No tasks directory found.")
+        #         items = [p.name for p in sorted(tasks_dir.iterdir())]
+        #         if not items:
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="No tasks found.")
+        #         return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="\n".join(items))
+
+        #     # /cronjoblist - list cron jobs if cron service available
+        #     if cmd == "/cronjoblist":
+        #         if not self.cron_service:
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="Cron service not enabled.")
+        #         jobs = self.cron_service.list_jobs(include_disabled=True)
+        #         if not jobs:
+        #             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="No cron jobs scheduled.")
+        #         lines = []
+        #         import time
+        #         for job in jobs:
+        #             if job.schedule.kind == "every":
+        #                 sched = f"every {(job.schedule.every_ms or 0) // 1000}s"
+        #             elif job.schedule.kind == "cron":
+        #                 sched = job.schedule.expr or ""
+        #             else:
+        #                 sched = "one-time"
+        #             next_run = ""
+        #             if job.state and getattr(job.state, "next_run_at_ms", None):
+        #                 next_run = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000))
+        #             status = "enabled" if job.enabled else "disabled"
+        #             lines.append(f"{job.id}: {job.name} | {sched} | {status} | next: {next_run}")
+        #         return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content="\n".join(lines))
+
         self._set_tool_context(msg.channel, msg.chat_id)
         initial_messages = self.context.build_messages(
             history=session.get_history(max_messages=self.memory_window),

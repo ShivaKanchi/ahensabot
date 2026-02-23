@@ -219,6 +219,7 @@ class ProvidersConfig(Base):
     aihubmix: ProviderConfig = Field(default_factory=ProviderConfig)  # AiHubMix API gateway
     openai_codex: ProviderConfig = Field(default_factory=ProviderConfig)  # OpenAI Codex (OAuth)
     github_copilot: ProviderConfig = Field(default_factory=ProviderConfig)  # Github Copilot (OAuth)
+    ollama: ProviderConfig = Field(default_factory=ProviderConfig)  # Local Ollama server
 
 
 class GatewayConfig(Base):

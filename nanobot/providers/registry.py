@@ -317,6 +317,29 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
 
     # === Local deployment (matched by config key, NOT by api_base) =========
 
+
+    # Ollama: local LLM models via Ollama.
+    # Detected when config key is "ollama" (provider_name="ollama").
+    # Model format: "ollama/model-name" (e.g., "ollama/gemma3:12b")
+    ProviderSpec(
+        name="ollama",
+        keywords=("ollama",),
+        env_key="OLLAMA_API_KEY",           # No key needed, but field required by schema
+        display_name="Ollama",
+        litellm_prefix="ollama",            # gemma3:12b → ollama/gemma3:12b
+        skip_prefixes=(),
+        env_extras=(
+            ("OLLAMA_API_BASE", "{api_base}"),
+        ),
+        is_gateway=False,
+        is_local=True,
+        detect_by_key_prefix="",
+        detect_by_base_keyword="ollama",
+        default_api_base="http://localhost:11434",  # default Ollama server
+        strip_model_prefix=False,
+        model_overrides=(),
+    ),
+    
     # vLLM / any OpenAI-compatible local server.
     # Detected when config key is "vllm" (provider_name="vllm").
     ProviderSpec(
