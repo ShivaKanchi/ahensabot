@@ -324,9 +324,12 @@ def _make_provider(config: Config):
 
     spec = find_by_name(provider_name)
     if (
-        and not (p and p.api_key)
-        and not (spec and spec.is_oauth)
-        not any(model.startswith(prefix) for prefix in ("bedrock/", "ollama/", "hosted_vllm/"))
+        (not p or not p.api_key)
+        and (not spec or not spec.is_oauth)
+        and not any(
+            model.startswith(prefix)
+            for prefix in ("bedrock/", "ollama/", "hosted_vllm/")
+        )
     ):
         console.print("[red]Error: No API key configured.[/red]")
         console.print("Set one in ~/.nanobot/config.json under providers section")
