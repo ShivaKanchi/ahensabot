@@ -228,7 +228,9 @@ def _create_workspace_templates(workspace: Path):
     memory_template = templates_dir / "memory" / "MEMORY.md"
     memory_file = memory_dir / "MEMORY.md"
     if not memory_file.exists():
-        memory_file.write_text(memory_template.read_text(encoding="utf-8"), encoding="utf-8")
+        memory_file.write_text(
+            memory_template.read_text(encoding="utf-8"), encoding="utf-8"
+        )
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
     history_file = memory_dir / "HISTORY.md"
@@ -477,7 +479,7 @@ def gateway(
         return response
 
     cron.on_job = on_cron_job
-    
+
     # Create channel manager
     channels = ChannelManager(config, bus)
 
@@ -498,37 +500,43 @@ def gateway(
         return "cli", "direct"
 
     # Create heartbeat service
-    async def on_heartbeat(prompt: str) -> str:
-        """Execute heartbeat through the agent."""
+    async def on_heartbeat_execute(tasks: str) -> str:
+        """Phase 2: execute heartbeat tasks through the full agent loop."""
         channel, chat_id = _pick_heartbeat_target()
 
         async def _silent(*_args, **_kwargs):
             pass
 
         return await agent.process_direct(
-            prompt,
+            tasks,
             session_key="heartbeat",
             channel=channel,
             chat_id=chat_id,
-            on_progress=_silent,  # suppress: heartbeat should not push progress to external channels
+            on_progress=_silent,
         )
 
     async def on_heartbeat_notify(response: str) -> None:
         """Deliver a heartbeat response to the user's channel."""
         from nanobot.bus.events import OutboundMessage
+
         channel, chat_id = _pick_heartbeat_target()
         if channel == "cli":
             return  # No external channel available to deliver to
-        await bus.publish_outbound(OutboundMessage(channel=channel, chat_id=chat_id, content=response))
+        await bus.publish_outbound(
+            OutboundMessage(channel=channel, chat_id=chat_id, content=response)
+        )
 
+    hb_cfg = config.gateway.heartbeat
     heartbeat = HeartbeatService(
         workspace=config.workspace_path,
-        on_heartbeat=on_heartbeat,
+        provider=provider,
+        model=agent.model,
+        on_execute=on_heartbeat_execute,
         on_notify=on_heartbeat_notify,
-        interval_s=30 * 60,  # 30 minutes
-        enabled=True,
+        interval_s=hb_cfg.interval_s,
+        enabled=hb_cfg.enabled,
     )
-    
+
     if channels.enabled_channels:
         console.print(
             f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}"
@@ -543,7 +551,7 @@ def gateway(
     if cron_status["jobs"] > 0:
         console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
 
-    console.print(f"[green]✓[/green] Heartbeat: every 30m")
+    console.print(f"[green]✓[/green] Heartbeat: every {hb_cfg.interval_s}s")
 
     async def run():
         try:
@@ -643,7 +651,9 @@ def agent(
         # Single message mode — direct call, no bus needed
         async def run_once():
             with _thinking_ctx():
-                response = await agent_loop.process_direct(message, session_id, on_progress=_cli_progress)
+                response = await agent_loop.process_direct(
+                    message, session_id, on_progress=_cli_progress
+                )
             _print_agent_response(response, render_markdown=markdown)
             await agent_loop.close_mcp()
 
@@ -651,8 +661,11 @@ def agent(
     else:
         # Interactive mode — route through bus like other channels
         from nanobot.bus.events import InboundMessage
+
         _init_prompt_session()
-        console.print(f"{__logo__} Interactive mode (type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit)\n")
+        console.print(
+            f"{__logo__} Interactive mode (type [bold]exit[/bold] or [bold]Ctrl+C[/bold] to quit)\n"
+        )
 
         if ":" in session_id:
             cli_channel, cli_chat_id = session_id.split(":", 1)
@@ -675,7 +688,9 @@ def agent(
             async def _consume_outbound():
                 while True:
                     try:
-                        msg = await asyncio.wait_for(bus.consume_outbound(), timeout=1.0)
+                        msg = await asyncio.wait_for(
+                            bus.consume_outbound(), timeout=1.0
+                        )
                         if msg.metadata.get("_progress"):
                             is_tool_hint = msg.metadata.get("_tool_hint", False)
                             ch = agent_loop.channels_config
@@ -716,18 +731,22 @@ def agent(
                         turn_done.clear()
                         turn_response.clear()
 
-                        await bus.publish_inbound(InboundMessage(
-                            channel=cli_channel,
-                            sender_id="user",
-                            chat_id=cli_chat_id,
-                            content=user_input,
-                        ))
+                        await bus.publish_inbound(
+                            InboundMessage(
+                                channel=cli_channel,
+                                sender_id="user",
+                                chat_id=cli_chat_id,
+                                content=user_input,
+                            )
+                        )
 
                         with _thinking_ctx():
                             await turn_done.wait()
 
                         if turn_response:
-                            _print_agent_response(turn_response[0], render_markdown=markdown)
+                            _print_agent_response(
+                                turn_response[0], render_markdown=markdown
+                            )
                     except KeyboardInterrupt:
                         _restore_terminal()
                         console.print("\nGoodbye!")
@@ -794,39 +813,31 @@ def channels_status():
 
     # Slack
     slack = config.channels.slack
-    slack_config = "socket" if slack.app_token and slack.bot_token else "[dim]not configured[/dim]"
-    table.add_row(
-        "Slack",
-        "✓" if slack.enabled else "✗",
-        slack_config
+    slack_config = (
+        "socket" if slack.app_token and slack.bot_token else "[dim]not configured[/dim]"
     )
+    table.add_row("Slack", "✓" if slack.enabled else "✗", slack_config)
 
     # DingTalk
     dt = config.channels.dingtalk
-    dt_config = f"client_id: {dt.client_id[:10]}..." if dt.client_id else "[dim]not configured[/dim]"
-    table.add_row(
-        "DingTalk",
-        "✓" if dt.enabled else "✗",
-        dt_config
+    dt_config = (
+        f"client_id: {dt.client_id[:10]}..."
+        if dt.client_id
+        else "[dim]not configured[/dim]"
     )
+    table.add_row("DingTalk", "✓" if dt.enabled else "✗", dt_config)
 
     # QQ
     qq = config.channels.qq
-    qq_config = f"app_id: {qq.app_id[:10]}..." if qq.app_id else "[dim]not configured[/dim]"
-    table.add_row(
-        "QQ",
-        "✓" if qq.enabled else "✗",
-        qq_config
+    qq_config = (
+        f"app_id: {qq.app_id[:10]}..." if qq.app_id else "[dim]not configured[/dim]"
     )
+    table.add_row("QQ", "✓" if qq.enabled else "✗", qq_config)
 
     # Email
     em = config.channels.email
     em_config = em.imap_host if em.imap_host else "[dim]not configured[/dim]"
-    table.add_row(
-        "Email",
-        "✓" if em.enabled else "✗",
-        em_config
-    )
+    table.add_row("Email", "✓" if em.enabled else "✗", em_config)
 
     console.print(table)
 
@@ -1032,7 +1043,7 @@ def cron_add(
 
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     try:
         job = service.add_job(
             name=name,
@@ -1098,6 +1109,7 @@ def cron_run(
     from nanobot.cron.types import CronJob
     from nanobot.bus.queue import MessageBus
     from nanobot.agent.loop import AgentLoop
+
     logger.disable("nanobot")
 
     config = load_config()
@@ -1210,12 +1222,15 @@ def _register_login(name: str):
     def decorator(fn):
         _LOGIN_HANDLERS[name] = fn
         return fn
+
     return decorator
 
 
 @provider_app.command("login")
 def provider_login(
-    provider: str = typer.Argument(..., help="OAuth provider (e.g. 'openai-codex', 'github-copilot')"),
+    provider: str = typer.Argument(
+        ..., help="OAuth provider (e.g. 'openai-codex', 'github-copilot')"
+    ),
 ):
     """Authenticate with an OAuth provider."""
     from nanobot.providers.registry import PROVIDERS
@@ -1224,7 +1239,9 @@ def provider_login(
     spec = next((s for s in PROVIDERS if s.name == key and s.is_oauth), None)
     if not spec:
         names = ", ".join(s.name.replace("_", "-") for s in PROVIDERS if s.is_oauth)
-        console.print(f"[red]Unknown OAuth provider: {provider}[/red]  Supported: {names}")
+        console.print(
+            f"[red]Unknown OAuth provider: {provider}[/red]  Supported: {names}"
+        )
         raise typer.Exit(1)
 
     handler = _LOGIN_HANDLERS.get(spec.name)
@@ -1240,6 +1257,7 @@ def provider_login(
 def _login_openai_codex() -> None:
     try:
         from oauth_cli_kit import get_token, login_oauth_interactive
+
         token = None
         try:
             token = get_token()
@@ -1254,9 +1272,13 @@ def _login_openai_codex() -> None:
         if not (token and token.access):
             console.print("[red]✗ Authentication failed[/red]")
             raise typer.Exit(1)
-        console.print(f"[green]✓ Authenticated with OpenAI Codex[/green]  [dim]{token.account_id}[/dim]")
+        console.print(
+            f"[green]✓ Authenticated with OpenAI Codex[/green]  [dim]{token.account_id}[/dim]"
+        )
     except ImportError:
-        console.print("[red]oauth_cli_kit not installed. Run: pip install oauth-cli-kit[/red]")
+        console.print(
+            "[red]oauth_cli_kit not installed. Run: pip install oauth-cli-kit[/red]"
+        )
         raise typer.Exit(1)
 
 
@@ -1268,7 +1290,12 @@ def _login_github_copilot() -> None:
 
     async def _trigger():
         from litellm import acompletion
-        await acompletion(model="github_copilot/gpt-4o", messages=[{"role": "user", "content": "hi"}], max_tokens=1)
+
+        await acompletion(
+            model="github_copilot/gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=1,
+        )
 
     try:
         asyncio.run(_trigger())
