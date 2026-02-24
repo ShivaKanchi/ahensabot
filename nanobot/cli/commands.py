@@ -370,7 +370,11 @@ def gateway(
 
         logging.basicConfig(level=logging.DEBUG)
 
+    from nanobot.config.loader import get_config_path as _get_config_path
+
+    config_path = _get_config_path()
     console.print(f"{__logo__} Starting nanobot gateway on port {port}...")
+    console.print(f"[dim]Config: {config_path.resolve()}[/dim]")
 
     config = load_config()
     bus = MessageBus()
