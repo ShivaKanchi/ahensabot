@@ -32,7 +32,7 @@ def load_config(config_path: Path | None = None) -> Config:
 
     if path.is_file():
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             data = _migrate_config(data)
             return Config.model_validate(data)
@@ -62,8 +62,8 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
 
     data = config.model_dump(by_alias=True)
 
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def _migrate_config(data: dict) -> dict:
