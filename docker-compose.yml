@@ -1,0 +1,101 @@
+services:
+  nanobot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nanobot-agent
+    restart: unless-stopped
+    environment:
+      # LLM Provider - Using Ollama (local) - no API key needed
+      NANOBOT_AGENTS__DEFAULTS__MODEL: ${NANOBOT_MODEL:-ollama/gemma3:12b}
+      # Set API key to "none" for Ollama provider
+      NANOBOT_PROVIDERS__OLLAMA__API_KEY: "none"
+      # Ensure Ollama API base points to the host (for Docker Desktop)
+      NANOBOT_PROVIDERS__OLLAMA__API_BASE: "http://host.docker.internal:11434"
+      # vLLM provider test API key and API base (for testing vllm auth handling)
+      NANOBOT_PROVIDERS__VLLM__API_KEY: "test-vllm-key"
+      NANOBOT_PROVIDERS__VLLM__API_BASE: "http://host.docker.internal:11434"
+      # OLLAMA_API_BASE is configured in config.json, defaults to http://host.docker.internal:11434
+      
+      # Alternative LLM Providers (uncomment one if you want to use cloud provider instead)
+      # OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      # QWEN_API_KEY: ${QWEN_API_KEY}
+      # DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      # MOONSHOT_API_KEY: ${MOONSHOT_API_KEY}
+      
+      # Chat Channels - Optional, only set if you want to use them
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      # DISCORD_TOKEN: ${DISCORD_TOKEN}
+      # SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN}
+    
+    ports:
+      - "18790:18790"  # Gateway default port
+    # Run the gateway by default so the container stays running
+    # command: ["gateway", "--port", "18790"]
+    entrypoint: ["tail", "-f", "/dev/null"]
+    
+    volumes:
+      # Mount config and workspace to ~/.nanobot in container
+      - ./nanobot/config.json:/root/.nanobot/config.json
+      - ./workspace:/root/.nanobot/workspace
+    
+    networks:
+      - default
+    
+    # Ensure container can reach host.docker.internal (Mac/Windows Docker Desktop)
+    # On Linux, use: extra_hosts: ["host.docker.internal:host-gateway"]
+    
+    # Enable logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "nanobot", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
+networks:
+  default:
+    name: nanobot-network
+
+
+# x-common-config: &common-config
+#   build:
+#     context: .
+#     dockerfile: Dockerfile
+#   volumes:
+#     - ~/.nanobot:/root/.nanobot
+
+# services:
+#   nanobot-gateway:
+#     container_name: nanobot-gateway
+#     <<: *common-config
+#     command: ["gateway"]
+#     restart: unless-stopped
+#     ports:
+#       - 18790:18790
+#     deploy:
+#       resources:
+#         limits:
+#           cpus: '1'
+#           memory: 1G
+#         reservations:
+#           cpus: '0.25'
+#           memory: 256M
+  
+#   nanobot-cli:
+#     <<: *common-config
+#     profiles:
+#       - cli
+#     command: ["status"]
+#     stdin_open: true
+#     tty: true
