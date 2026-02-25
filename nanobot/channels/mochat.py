@@ -281,8 +281,8 @@ class MochatChannel(BaseChannel):
         if self._socket:
             try:
                 await self._socket.disconnect()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to disconnect Mochat socket: {e}")
             self._socket = None
 
         if self._cursor_save_task:
@@ -410,8 +410,8 @@ class MochatChannel(BaseChannel):
             logger.error(f"Failed to connect Mochat websocket: {e}")
             try:
                 await client.disconnect()
-            except Exception:
-                pass
+            except Exception as cleanup_e:
+                logger.debug(f"Failed to disconnect Mochat socket after connection failure: {cleanup_e}")
             self._socket = None
             return False
 
