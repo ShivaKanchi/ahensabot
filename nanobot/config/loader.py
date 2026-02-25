@@ -14,6 +14,7 @@ def get_config_path() -> Path:
 def get_data_dir() -> Path:
     """Get the nanobot data directory."""
     from nanobot.utils.helpers import get_data_path
+
     return get_data_path()
 
 
@@ -29,13 +30,13 @@ def load_config(config_path: Path | None = None) -> Config:
     """
     path = config_path or get_config_path()
 
-    if path.exists():
+    if path.is_file():
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             data = _migrate_config(data)
             return Config.model_validate(data)
-        except (json.JSONDecodeError, ValueError) as e:
+        except (json.JSONDecodeError, ValueError, IsADirectoryError) as e:
             print(f"Warning: Failed to load config from {path}: {e}")
             print("Using default configuration.")
 
@@ -53,10 +54,16 @@ def save_config(config: Config, config_path: Path | None = None) -> None:
     path = config_path or get_config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    # If path exists and is a directory, remove it to avoid conflicts
+    if path.exists() and path.is_dir():
+        import shutil
+
+        shutil.rmtree(path)
+
     data = config.model_dump(by_alias=True)
 
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def _migrate_config(data: dict) -> dict:

@@ -14,6 +14,7 @@ def _load_template(name: str) -> str:
     return template_path.read_text(encoding="utf-8")
 
 
+
 class WebServer:
     def __init__(
         self,
@@ -60,30 +61,34 @@ class WebServer:
         channels_status = self.channel_manager.get_status()
         cron_status = self.cron_service.status()
 
-        return web.json_response({
-            "channels": channels_status,
-            "cron": cron_status,
-        })
+        return web.json_response(
+            {
+                "channels": channels_status,
+                "cron": cron_status,
+            }
+        )
 
     async def _handle_cron(self, request: web.Request) -> web.Response:
         jobs = self.cron_service.list_jobs(include_disabled=True)
         # Convert to dict for JSON serialization
         jobs_data = []
         for j in jobs:
-            jobs_data.append({
-                "id": j.id,
-                "name": j.name,
-                "enabled": j.enabled,
-                "schedule": {
-                    "kind": j.schedule.kind,
-                    "atMs": j.schedule.at_ms,
-                    "everyMs": j.schedule.every_ms,
-                    "expr": j.schedule.expr,
-                },
-                "state": {
-                    "nextRunAtMs": j.state.next_run_at_ms,
-                    "lastStatus": j.state.last_status,
+            jobs_data.append(
+                {
+                    "id": j.id,
+                    "name": j.name,
+                    "enabled": j.enabled,
+                    "schedule": {
+                        "kind": j.schedule.kind,
+                        "atMs": j.schedule.at_ms,
+                        "everyMs": j.schedule.every_ms,
+                        "expr": j.schedule.expr,
+                    },
+                    "state": {
+                        "nextRunAtMs": j.state.next_run_at_ms,
+                        "lastStatus": j.state.last_status,
+                    },
                 }
-            })
+            )
 
         return web.json_response(jobs_data)
