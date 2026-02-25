@@ -3,6 +3,8 @@
 import base64
 import mimetypes
 import platform
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,26 +76,13 @@ Skills with available="false" need dependencies installed first - you can try in
 
     def _get_identity(self) -> str:
         """Get the core identity section."""
-        from datetime import datetime
-        import time as _time
-
-        now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
-        tz = _time.strftime("%Z") or "UTC"
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
 
         return f"""# ahensa 🐈‍⬛
 
-You are ahensa, a helpful AI assistant. You have access to tools that allow you to:
-- Read, write, and edit files
-- Execute shell commands
-- Search the web and fetch web pages
-- Send messages to users on chat channels
-- Spawn subagents for complex background tasks
-
-## Current Time
-{now} ({tz})
+You are nanobot, a helpful AI assistant. 
 
 ## Runtime
 {runtime}
@@ -104,13 +93,35 @@ Your workspace is at: {workspace_path}
 - History log: {workspace_path}/memory/HISTORY.md (grep-searchable)
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
 
-IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
-Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).
-For normal conversation, just respond with text - do not call the message tool.
+Reply directly with text for conversations. Only use the 'message' tool to send to a specific chat channel.
 
-Always be helpful, accurate, and concise. When using tools, think step by step: what you know, what you need, and why you chose this tool.
-When remembering something important, write to {workspace_path}/memory/MEMORY.md
-To recall past events, grep {workspace_path}/memory/HISTORY.md"""
+## Tool Call Guidelines
+- Before calling tools, you may briefly state your intent (e.g. "Let me check that"), but NEVER predict or describe the expected result before receiving it.
+- Before modifying a file, read it first to confirm its current content.
+- Do not assume a file or directory exists — use list_dir or read_file to verify.
+- After writing or editing a file, re-read it if accuracy matters.
+- If a tool call fails, analyze the error before retrying with a different approach.
+
+## Memory
+- Remember important facts: write to {workspace_path}/memory/MEMORY.md
+- Recall past events: grep {workspace_path}/memory/HISTORY.md"""
+
+    @staticmethod
+    def _inject_runtime_context(
+        user_content: str | list[dict[str, Any]],
+        channel: str | None,
+        chat_id: str | None,
+    ) -> str | list[dict[str, Any]]:
+        """Append dynamic runtime context to the tail of the user message."""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
+        tz = time.strftime("%Z") or "UTC"
+        lines = [f"Current Time: {now} ({tz})"]
+        if channel and chat_id:
+            lines += [f"Channel: {channel}", f"Chat ID: {chat_id}"]
+        block = "[Runtime Context]\n" + "\n".join(lines)
+        if isinstance(user_content, str):
+            return f"{user_content}\n\n{block}"
+        return [*user_content, {"type": "text", "text": block}]
 
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""
@@ -151,10 +162,6 @@ To recall past events, grep {workspace_path}/memory/HISTORY.md"""
 
         # System prompt
         system_prompt = self.build_system_prompt(skill_names)
-        if channel and chat_id:
-            system_prompt += (
-                f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
-            )
         messages.append({"role": "system", "content": system_prompt})
 
         # History
@@ -162,6 +169,7 @@ To recall past events, grep {workspace_path}/memory/HISTORY.md"""
 
         # Current message (with optional image attachments)
         user_content = self._build_user_content(current_message, media)
+        user_content = self._inject_runtime_context(user_content, channel, chat_id)
         messages.append({"role": "user", "content": user_content})
 
         return messages
@@ -238,15 +246,15 @@ To recall past events, grep {workspace_path}/memory/HISTORY.md"""
         """
         msg: dict[str, Any] = {"role": "assistant"}
 
-        # Omit empty content — some backends reject empty text blocks
-        if content:
-            msg["content"] = content
+        # Always include content — some providers (e.g. StepFun) reject
+        # assistant messages that omit the key entirely.
+        msg["content"] = content
 
         if tool_calls:
             msg["tool_calls"] = tool_calls
 
         # Include reasoning content when provided (required by some thinking models)
-        if reasoning_content:
+        if reasoning_content is not None:
             msg["reasoning_content"] = reasoning_content
 
         messages.append(msg)
