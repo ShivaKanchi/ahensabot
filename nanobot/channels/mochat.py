@@ -668,7 +668,7 @@ class MochatChannel(BaseChannel):
         author = _str_field(payload, "author")
         if not author or (self.config.agent_user_id and author == self.config.agent_user_id):
             return
-        if not self.is_allowed(author):
+        if not self.check_access(author):
             return
 
         message_id = _str_field(payload, "messageId")

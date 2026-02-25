@@ -690,8 +690,12 @@ class FeishuChannel(BaseChannel):
             chat_id = message.chat_id
             chat_type = message.chat_type
             msg_type = message.message_type
+            
+            # Check authorization before processing
+            if not self.check_access(sender_id):
+                return
 
-            # Add reaction
+            # Add reaction to indicate "seen"
             await self._add_reaction(message_id, "THUMBSUP")
 
             # Parse content
