@@ -16,20 +16,11 @@ class CronTool(Tool):
         self._cron = cron_service
         self._channel = ""
         self._chat_id = ""
-        self._in_cron_context: ContextVar[bool] = ContextVar("cron_in_context", default=False)
 
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current session context for delivery."""
         self._channel = channel
         self._chat_id = chat_id
-
-    def set_cron_context(self, active: bool):
-        """Mark whether the tool is executing inside a cron job callback."""
-        return self._in_cron_context.set(active)
-
-    def reset_cron_context(self, token) -> None:
-        """Restore previous cron context."""
-        self._in_cron_context.reset(token)
 
     @property
     def name(self) -> str:
@@ -49,7 +40,10 @@ class CronTool(Tool):
                     "enum": ["add", "list", "remove"],
                     "description": "Action to perform",
                 },
-                "message": {"type": "string", "description": "Reminder message (for add)"},
+                "message": {
+                    "type": "string",
+                    "description": "Reminder message (for add)",
+                },
                 "every_seconds": {
                     "type": "integer",
                     "description": "Interval in seconds (for recurring tasks)",
@@ -84,7 +78,9 @@ class CronTool(Tool):
     ) -> str:
         if action == "add":
             if self._in_cron_context.get():
-                return "Error: cannot schedule new jobs from within a cron job execution"
+                return (
+                    "Error: cannot schedule new jobs from within a cron job execution"
+                )
             return self._add_job(message, every_seconds, cron_expr, tz, at)
         elif action == "list":
             return self._list_jobs()
@@ -123,10 +119,7 @@ class CronTool(Tool):
         elif at:
             from datetime import datetime
 
-            try:
-                dt = datetime.fromisoformat(at)
-            except ValueError:
-                return f"Error: invalid ISO datetime format '{at}'. Expected format: YYYY-MM-DDTHH:MM:SS"
+            dt = datetime.fromisoformat(at)
             at_ms = int(dt.timestamp() * 1000)
             schedule = CronSchedule(kind="at", at_ms=at_ms)
             delete_after = True

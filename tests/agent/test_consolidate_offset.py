@@ -262,7 +262,9 @@ class TestLastConsolidatedEdgeCases:
 
         total_messages = len(session.messages)
         old_messages = get_old_messages(session, session.last_consolidated, KEEP_COUNT)
-        expected_consolidate_count = total_messages - KEEP_COUNT - session.last_consolidated
+        expected_consolidate_count = (
+            total_messages - KEEP_COUNT - session.last_consolidated
+        )
 
         assert len(old_messages) == expected_consolidate_count
         assert_messages_content(old_messages, 15, 24)
@@ -500,12 +502,16 @@ class TestNewCommandArchival:
             model="test-model",
             context_window_tokens=1,
         )
-        loop.provider.chat_with_retry = AsyncMock(return_value=LLMResponse(content="ok", tool_calls=[]))
+        loop.provider.chat_with_retry = AsyncMock(
+            return_value=LLMResponse(content="ok", tool_calls=[])
+        )
         loop.tools.get_definitions = MagicMock(return_value=[])
         return loop
 
     @pytest.mark.asyncio
-    async def test_new_clears_session_immediately_even_if_archive_fails(self, tmp_path: Path) -> None:
+    async def test_new_clears_session_immediately_even_if_archive_fails(
+        self, tmp_path: Path
+    ) -> None:
         """/new clears session immediately; archive_messages retries until raw dump."""
         from nanobot.bus.events import InboundMessage
 
@@ -525,7 +531,9 @@ class TestNewCommandArchival:
 
         loop.memory_consolidator.consolidate_messages = _failing_consolidate  # type: ignore[method-assign]
 
-        new_msg = InboundMessage(channel="cli", sender_id="user", chat_id="test", content="/new")
+        new_msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="test", content="/new"
+        )
         response = await loop._process_message(new_msg)
 
         assert response is not None
@@ -538,7 +546,9 @@ class TestNewCommandArchival:
         assert call_count == 3  # retried up to raw-archive threshold
 
     @pytest.mark.asyncio
-    async def test_new_archives_only_unconsolidated_messages(self, tmp_path: Path) -> None:
+    async def test_new_archives_only_unconsolidated_messages(
+        self, tmp_path: Path
+    ) -> None:
         from nanobot.bus.events import InboundMessage
 
         loop = self._make_loop(tmp_path)
@@ -558,7 +568,9 @@ class TestNewCommandArchival:
 
         loop.memory_consolidator.consolidate_messages = _fake_consolidate  # type: ignore[method-assign]
 
-        new_msg = InboundMessage(channel="cli", sender_id="user", chat_id="test", content="/new")
+        new_msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="test", content="/new"
+        )
         response = await loop._process_message(new_msg)
 
         assert response is not None
@@ -583,7 +595,9 @@ class TestNewCommandArchival:
 
         loop.memory_consolidator.consolidate_messages = _ok_consolidate  # type: ignore[method-assign]
 
-        new_msg = InboundMessage(channel="cli", sender_id="user", chat_id="test", content="/new")
+        new_msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="test", content="/new"
+        )
         response = await loop._process_message(new_msg)
 
         assert response is not None
@@ -611,7 +625,9 @@ class TestNewCommandArchival:
 
         loop.memory_consolidator.consolidate_messages = _slow_consolidate  # type: ignore[method-assign]
 
-        new_msg = InboundMessage(channel="cli", sender_id="user", chat_id="test", content="/new")
+        new_msg = InboundMessage(
+            channel="cli", sender_id="user", chat_id="test", content="/new"
+        )
         await loop._process_message(new_msg)
 
         assert not archived.is_set()

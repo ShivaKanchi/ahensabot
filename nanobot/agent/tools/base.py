@@ -96,9 +96,18 @@ class Tool(ABC):
 
         if target_type == "boolean" and isinstance(val, bool):
             return val
-        if target_type == "integer" and isinstance(val, int) and not isinstance(val, bool):
+        if (
+            target_type == "integer"
+            and isinstance(val, int)
+            and not isinstance(val, bool)
+        ):
             return val
-        if target_type in self._TYPE_MAP and target_type not in ("boolean", "integer", "array", "object"):
+        if target_type in self._TYPE_MAP and target_type not in (
+            "boolean",
+            "integer",
+            "array",
+            "object",
+        ):
             expected = self._TYPE_MAP[target_type]
             if isinstance(val, expected):
                 return val
@@ -128,7 +137,11 @@ class Tool(ABC):
 
         if target_type == "array" and isinstance(val, list):
             item_schema = schema.get("items")
-            return [self._cast_value(item, item_schema) for item in val] if item_schema else val
+            return (
+                [self._cast_value(item, item_schema) for item in val]
+                if item_schema
+                else val
+            )
 
         if target_type == "object" and isinstance(val, dict):
             return self._cast_object(val, schema)
@@ -158,7 +171,11 @@ class Tool(ABC):
             not isinstance(val, self._TYPE_MAP[t]) or isinstance(val, bool)
         ):
             return [f"{label} should be number"]
-        if t in self._TYPE_MAP and t not in ("integer", "number") and not isinstance(val, self._TYPE_MAP[t]):
+        if (
+            t in self._TYPE_MAP
+            and t not in ("integer", "number")
+            and not isinstance(val, self._TYPE_MAP[t])
+        ):
             return [f"{label} should be {t}"]
 
         errors = []
@@ -181,11 +198,15 @@ class Tool(ABC):
                     errors.append(f"missing required {path + '.' + k if path else k}")
             for k, v in val.items():
                 if k in props:
-                    errors.extend(self._validate(v, props[k], path + "." + k if path else k))
+                    errors.extend(
+                        self._validate(v, props[k], path + "." + k if path else k)
+                    )
         if t == "array" and "items" in schema:
             for i, item in enumerate(val):
                 errors.extend(
-                    self._validate(item, schema["items"], f"{path}[{i}]" if path else f"[{i}]")
+                    self._validate(
+                        item, schema["items"], f"{path}[{i}]" if path else f"[{i}]"
+                    )
                 )
         return errors
 

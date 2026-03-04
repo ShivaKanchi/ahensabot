@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -49,10 +50,7 @@ class GroqTranscriptionProvider:
                     }
 
                     response = await client.post(
-                        self.api_url,
-                        headers=headers,
-                        files=files,
-                        timeout=60.0
+                        self.api_url, headers=headers, files=files, timeout=60.0
                     )
 
                     response.raise_for_status()
