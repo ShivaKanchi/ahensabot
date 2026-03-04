@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from loguru import logger
 
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import Config
+
+if TYPE_CHECKING:
+    from nanobot.cron.service import CronService
 
 
 class ChannelManager:
@@ -22,9 +25,12 @@ class ChannelManager:
     - Route outbound messages
     """
 
-    def __init__(self, config: Config, bus: MessageBus):
+    def __init__(
+        self, config: Config, bus: MessageBus, cron_service: CronService | None = None
+    ):
         self.config = config
         self.bus = bus
+        self.cron_service = cron_service
         self.channels: dict[str, BaseChannel] = {}
         self._dispatch_task: asyncio.Task | None = None
 
@@ -116,22 +122,29 @@ class ChannelManager:
 
         while True:
             try:
-                msg = await asyncio.wait_for(
-                    self.bus.consume_outbound(),
-                    timeout=1.0
-                )
+                msg = await asyncio.wait_for(self.bus.consume_outbound(), timeout=1.0)
 
                 if msg.metadata.get("_progress"):
-                    if msg.metadata.get("_tool_hint") and not self.config.channels.send_tool_hints:
+                    if (
+                        msg.metadata.get("_tool_hint")
+                        and not self.config.channels.send_tool_hints
+                    ):
                         continue
-                    if not msg.metadata.get("_tool_hint") and not self.config.channels.send_progress:
+                    if (
+                        not msg.metadata.get("_tool_hint")
+                        and not self.config.channels.send_progress
+                    ):
                         continue
 
                 channel = self.channels.get(msg.channel)
                 if channel:
                     try:
-                        if msg.metadata.get("_stream_delta") or msg.metadata.get("_stream_end"):
-                            await channel.send_delta(msg.chat_id, msg.content, msg.metadata)
+                        if msg.metadata.get("_stream_delta") or msg.metadata.get(
+                            "_stream_end"
+                        ):
+                            await channel.send_delta(
+                                msg.chat_id, msg.content, msg.metadata
+                            )
                         elif msg.metadata.get("_streamed"):
                             pass
                         else:
@@ -153,10 +166,7 @@ class ChannelManager:
     def get_status(self) -> dict[str, Any]:
         """Get status of all channels."""
         return {
-            name: {
-                "enabled": True,
-                "running": channel.is_running
-            }
+            name: {"enabled": True, "running": channel.is_running}
             for name, channel in self.channels.items()
         }
 

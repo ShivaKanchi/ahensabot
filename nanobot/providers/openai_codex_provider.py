@@ -10,8 +10,8 @@ from typing import Any, AsyncGenerator
 
 import httpx
 from loguru import logger
-from oauth_cli_kit import get_token as get_codex_token
 
+from oauth_cli_kit import get_token as get_codex_token
 from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 
 DEFAULT_CODEX_URL = "https://chatgpt.com/backend-api/codex/responses"
@@ -61,37 +61,61 @@ class OpenAICodexProvider(LLMProvider):
         try:
             try:
                 content, tool_calls, finish_reason = await _request_codex(
-                    DEFAULT_CODEX_URL, headers, body, verify=True,
+                    DEFAULT_CODEX_URL,
+                    headers,
+                    body,
+                    verify=True,
                     on_content_delta=on_content_delta,
                 )
             except Exception as e:
                 if "CERTIFICATE_VERIFY_FAILED" not in str(e):
                     raise
-                logger.warning("SSL verification failed for Codex API; retrying with verify=False")
+                logger.warning(
+                    "SSL verification failed for Codex API; retrying with verify=False"
+                )
                 content, tool_calls, finish_reason = await _request_codex(
-                    DEFAULT_CODEX_URL, headers, body, verify=False,
+                    DEFAULT_CODEX_URL,
+                    headers,
+                    body,
+                    verify=False,
                     on_content_delta=on_content_delta,
                 )
-            return LLMResponse(content=content, tool_calls=tool_calls, finish_reason=finish_reason)
+            return LLMResponse(
+                content=content, tool_calls=tool_calls, finish_reason=finish_reason
+            )
         except Exception as e:
-            return LLMResponse(content=f"Error calling Codex: {e}", finish_reason="error")
+            return LLMResponse(
+                content=f"Error calling Codex: {e}", finish_reason="error"
+            )
 
     async def chat(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None,
-        model: str | None = None, max_tokens: int = 4096, temperature: float = 0.7,
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
     ) -> LLMResponse:
-        return await self._call_codex(messages, tools, model, reasoning_effort, tool_choice)
+        return await self._call_codex(
+            messages, tools, model, reasoning_effort, tool_choice
+        )
 
     async def chat_stream(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None,
-        model: str | None = None, max_tokens: int = 4096, temperature: float = 0.7,
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        model: str | None = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
-        return await self._call_codex(messages, tools, model, reasoning_effort, tool_choice, on_content_delta)
+        return await self._call_codex(
+            messages, tools, model, reasoning_effort, tool_choice, on_content_delta
+        )
 
     def get_default_model(self) -> str:
         return self.default_model
@@ -126,7 +150,11 @@ async def _request_codex(
         async with client.stream("POST", url, headers=headers, json=body) as response:
             if response.status_code != 200:
                 text = await response.aread()
-                raise RuntimeError(_friendly_error(response.status_code, text.decode("utf-8", "ignore")))
+                raise RuntimeError(
+                    _friendly_error(
+                        response.status_code, text.decode("utf-8", "ignore")
+                    )
+                )
             return await _consume_sse(response, on_content_delta)
 
 
@@ -139,16 +167,20 @@ def _convert_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not name:
             continue
         params = fn.get("parameters") or {}
-        converted.append({
-            "type": "function",
-            "name": name,
-            "description": fn.get("description") or "",
-            "parameters": params if isinstance(params, dict) else {},
-        })
+        converted.append(
+            {
+                "type": "function",
+                "name": name,
+                "description": fn.get("description") or "",
+                "parameters": params if isinstance(params, dict) else {},
+            }
+        )
     return converted
 
 
-def _convert_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]]]:
+def _convert_messages(
+    messages: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
     system_prompt = ""
     input_items: list[dict[str, Any]] = []
 
@@ -166,27 +198,43 @@ def _convert_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[st
 
         if role == "assistant":
             if isinstance(content, str) and content:
-                input_items.append({
-                    "type": "message", "role": "assistant",
-                    "content": [{"type": "output_text", "text": content}],
-                    "status": "completed", "id": f"msg_{idx}",
-                })
+                input_items.append(
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [{"type": "output_text", "text": content}],
+                        "status": "completed",
+                        "id": f"msg_{idx}",
+                    }
+                )
             for tool_call in msg.get("tool_calls", []) or []:
                 fn = tool_call.get("function") or {}
                 call_id, item_id = _split_tool_call_id(tool_call.get("id"))
-                input_items.append({
-                    "type": "function_call",
-                    "id": item_id or f"fc_{idx}",
-                    "call_id": call_id or f"call_{idx}",
-                    "name": fn.get("name"),
-                    "arguments": fn.get("arguments") or "{}",
-                })
+                input_items.append(
+                    {
+                        "type": "function_call",
+                        "id": item_id or f"fc_{idx}",
+                        "call_id": call_id or f"call_{idx}",
+                        "name": fn.get("name"),
+                        "arguments": fn.get("arguments") or "{}",
+                    }
+                )
             continue
 
         if role == "tool":
             call_id, _ = _split_tool_call_id(msg.get("tool_call_id"))
-            output_text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
-            input_items.append({"type": "function_call_output", "call_id": call_id, "output": output_text})
+            output_text = (
+                content
+                if isinstance(content, str)
+                else json.dumps(content, ensure_ascii=False)
+            )
+            input_items.append(
+                {
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": output_text,
+                }
+            )
 
     return system_prompt, input_items
 
@@ -204,7 +252,9 @@ def _convert_user_message(content: Any) -> dict[str, Any]:
             elif item.get("type") == "image_url":
                 url = (item.get("image_url") or {}).get("url")
                 if url:
-                    converted.append({"type": "input_image", "image_url": url, "detail": "auto"})
+                    converted.append(
+                        {"type": "input_image", "image_url": url, "detail": "auto"}
+                    )
         if converted:
             return {"role": "user", "content": converted}
     return {"role": "user", "content": [{"type": "input_text", "text": ""}]}
@@ -307,7 +357,12 @@ async def _consume_sse(
     return content, tool_calls, finish_reason
 
 
-_FINISH_REASON_MAP = {"completed": "stop", "incomplete": "length", "failed": "error", "cancelled": "error"}
+_FINISH_REASON_MAP = {
+    "completed": "stop",
+    "incomplete": "length",
+    "failed": "error",
+    "cancelled": "error",
+}
 
 
 def _map_finish_reason(status: str | None) -> str:

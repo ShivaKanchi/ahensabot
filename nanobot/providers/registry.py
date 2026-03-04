@@ -35,7 +35,9 @@ class ProviderSpec:
 
     # model prefixing
     litellm_prefix: str = ""  # "dashscope" → model becomes "dashscope/{model}"
-    skip_prefixes: tuple[str, ...] = ()  # don't prefix if model already starts with these
+    skip_prefixes: tuple[
+        str, ...
+    ] = ()  # don't prefix if model already starts with these
 
     # extra env vars, e.g. (("ZHIPUAI_API_KEY", "{api_key}"),)
     env_extras: tuple[tuple[str, str], ...] = ()
@@ -419,6 +421,25 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         model_overrides=(),
     ),
     # === Local deployment (matched by config key, NOT by api_base) =========
+    # Ollama: local LLM models via Ollama.
+    # Detected when config key is "ollama" (provider_name="ollama").
+    # Model format: "ollama/model-name" (e.g., "ollama/gemma3:12b")
+    ProviderSpec(
+        name="ollama",
+        keywords=("ollama",),
+        env_key="OLLAMA_API_KEY",  # No key needed, but field required by schema
+        display_name="Ollama",
+        litellm_prefix="ollama",  # gemma3:12b → ollama/gemma3:12b
+        skip_prefixes=(),
+        env_extras=(("OLLAMA_API_BASE", "{api_base}"),),
+        is_gateway=False,
+        is_local=True,
+        detect_by_key_prefix="",
+        detect_by_base_keyword="ollama",
+        default_api_base="http://localhost:11434",  # default Ollama server
+        strip_model_prefix=False,
+        model_overrides=(),
+    ),
     # vLLM / any OpenAI-compatible local server.
     # Detected when config key is "vllm" (provider_name="vllm").
     ProviderSpec(
@@ -508,7 +529,8 @@ def find_by_model(model: str) -> ProviderSpec | None:
 
     for spec in std_specs:
         if any(
-            kw in model_lower or kw.replace("-", "_") in model_normalized for kw in spec.keywords
+            kw in model_lower or kw.replace("-", "_") in model_normalized
+            for kw in spec.keywords
         ):
             return spec
     return None
@@ -537,9 +559,17 @@ def find_gateway(
 
     # 2. Auto-detect by api_key prefix / api_base keyword
     for spec in PROVIDERS:
-        if spec.detect_by_key_prefix and api_key and api_key.startswith(spec.detect_by_key_prefix):
+        if (
+            spec.detect_by_key_prefix
+            and api_key
+            and api_key.startswith(spec.detect_by_key_prefix)
+        ):
             return spec
-        if spec.detect_by_base_keyword and api_base and spec.detect_by_base_keyword in api_base:
+        if (
+            spec.detect_by_base_keyword
+            and api_base
+            and spec.detect_by_base_keyword in api_base
+        ):
             return spec
 
     return None

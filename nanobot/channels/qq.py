@@ -108,8 +108,7 @@ def _make_bot_class(channel: QQChannel) -> type[botpy.Client]:
 
     class _Bot(botpy.Client):
         def __init__(self):
-            # Disable botpy's file log — nanobot uses loguru; default "botpy.log" fails on read-only fs
-            super().__init__(intents=intents, ext_handlers=False)
+            super().__init__(intents=intents)
 
         async def on_ready(self):
             logger.info("QQ bot ready: {}", self.robot.name)
@@ -209,7 +208,9 @@ class QQChannel(BaseChannel):
         """Run the bot connection with auto-reconnect."""
         while self._running:
             try:
-                await self._client.start(appid=self.config.app_id, secret=self.config.secret)
+                await self._client.start(
+                    appid=self.config.app_id, secret=self.config.secret
+                )
             except Exception as e:
                 logger.warning("QQ bot error: {}", e)
             if self._running:
@@ -362,7 +363,9 @@ class QQChannel(BaseChannel):
             logger.error("QQ send media failed filename={} err={}", filename, e)
             return False
 
-    async def _read_media_bytes(self, media_ref: str) -> tuple[bytes | None, str | None]:
+    async def _read_media_bytes(
+        self, media_ref: str
+    ) -> tuple[bytes | None, str | None]:
         """Read bytes from http(s) or local file path; return (data, filename)."""
         media_ref = (media_ref or "").strip()
         if not media_ref:
@@ -380,19 +383,25 @@ class QQChannel(BaseChannel):
                     local_path = Path(os.path.expanduser(media_ref))
 
                 if not local_path.is_file():
-                    logger.warning("QQ outbound media file not found: {}", str(local_path))
+                    logger.warning(
+                        "QQ outbound media file not found: {}", str(local_path)
+                    )
                     return None, None
 
                 data = await asyncio.to_thread(local_path.read_bytes)
                 return data, local_path.name
             except Exception as e:
-                logger.warning("QQ outbound media read error ref={} err={}", media_ref, e)
+                logger.warning(
+                    "QQ outbound media read error ref={} err={}", media_ref, e
+                )
                 return None, None
 
         # Remote URL
         ok, err = validate_url_target(media_ref)
         if not ok:
-            logger.warning("QQ outbound media URL validation failed url={} err={}", media_ref, err)
+            logger.warning(
+                "QQ outbound media URL validation failed url={} err={}", media_ref, err
+            )
             return None, None
 
         if not self._http:
@@ -412,7 +421,9 @@ class QQChannel(BaseChannel):
                 filename = os.path.basename(urlparse(media_ref).path) or "file.bin"
                 return data, filename
         except Exception as e:
-            logger.warning("QQ outbound media download error url={} err={}", media_ref, e)
+            logger.warning(
+                "QQ outbound media download error url={} err={}", media_ref, e
+            )
             return None, None
 
     # https://github.com/tencent-connect/botpy/issues/198
@@ -451,7 +462,9 @@ class QQChannel(BaseChannel):
     # Inbound (receive)
     # ---------------------------
 
-    async def _on_message(self, data: C2CMessage | GroupMessage, is_group: bool = False) -> None:
+    async def _on_message(
+        self, data: C2CMessage | GroupMessage, is_group: bool = False
+    ) -> None:
         """Parse inbound message, download attachments, and publish to the bus."""
         if data.id in self._processed_ids:
             return
@@ -463,7 +476,8 @@ class QQChannel(BaseChannel):
             self._chat_type_cache[chat_id] = "group"
         else:
             chat_id = str(
-                getattr(data.author, "id", None) or getattr(data.author, "user_openid", "unknown")
+                getattr(data.author, "id", None)
+                or getattr(data.author, "user_openid", "unknown")
             )
             user_id = chat_id
             self._chat_type_cache[chat_id] = "c2c"
@@ -477,9 +491,17 @@ class QQChannel(BaseChannel):
 
         # Compose content that always contains actionable saved paths
         if recv_lines:
-            tag = "[Image]" if any(_is_image_name(Path(p).name) for p in media_paths) else "[File]"
+            tag = (
+                "[Image]"
+                if any(_is_image_name(Path(p).name) for p in media_paths)
+                else "[File]"
+            )
             file_block = "Received files:\n" + "\n".join(recv_lines)
-            content = f"{content}\n\n{file_block}".strip() if content else f"{tag}\n{file_block}"
+            content = (
+                f"{content}\n\n{file_block}".strip()
+                if content
+                else f"{tag}\n{file_block}"
+            )
 
         if not content and not media_paths:
             return
@@ -511,7 +533,9 @@ class QQChannel(BaseChannel):
             url, filename, ctype = att.url, att.filename, att.content_type
 
             logger.info("Downloading file from QQ: {}", filename or url)
-            local_path = await self._download_to_media_dir_chunked(url, filename_hint=filename)
+            local_path = await self._download_to_media_dir_chunked(
+                url, filename_hint=filename
+            )
 
             att_meta.append(
                 {
@@ -557,7 +581,9 @@ class QQChannel(BaseChannel):
                 allow_redirects=True,
             ) as resp:
                 if resp.status != 200:
-                    logger.warning("QQ download failed: status={} url={}", resp.status, url)
+                    logger.warning(
+                        "QQ download failed: status={} url={}", resp.status, url
+                    )
                     return None
 
                 ctype = (resp.headers.get("Content-Type") or "").lower()
@@ -597,7 +623,8 @@ class QQChannel(BaseChannel):
                 downloaded = 0
                 chunk_size = max(1024, int(self.config.download_chunk_size or 262144))
                 max_bytes = max(
-                    1024 * 1024, int(self.config.download_max_bytes or (200 * 1024 * 1024))
+                    1024 * 1024,
+                    int(self.config.download_max_bytes or (200 * 1024 * 1024)),
                 )
 
                 def _open_tmp():

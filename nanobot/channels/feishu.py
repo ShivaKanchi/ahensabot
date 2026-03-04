@@ -54,7 +54,7 @@ def _extract_share_card_content(content_json: dict, msg_type: str) -> str:
 def _extract_interactive_content(content: dict) -> list[str]:
     """Recursively extract text and links from interactive card content."""
     parts = []
-
+    
     if isinstance(content, str):
         try:
             content = json.loads(content)
@@ -75,7 +75,7 @@ def _extract_interactive_content(content: dict) -> list[str]:
 
     for elements in content.get("elements", []) if isinstance(content.get("elements"), list) else []:
         for element in elements:
-            parts.extend(_extract_element_content(element))
+        parts.extend(_extract_element_content(element))
 
     card = content.get("card", {})
     if card:
@@ -88,19 +88,19 @@ def _extract_interactive_content(content: dict) -> list[str]:
             header_text = header_title.get("content", "") or header_title.get("text", "")
             if header_text:
                 parts.append(f"title: {header_text}")
-
+    
     return parts
 
 
 def _extract_element_content(element: dict) -> list[str]:
     """Extract content from a single card element."""
     parts = []
-
+    
     if not isinstance(element, dict):
         return parts
-
+    
     tag = element.get("tag", "")
-
+    
     if tag in ("markdown", "lark_md"):
         content = element.get("content", "")
         if content:
@@ -161,13 +161,13 @@ def _extract_element_content(element: dict) -> list[str]:
     else:
         for ne in element.get("elements", []):
             parts.extend(_extract_element_content(ne))
-
+    
     return parts
 
 
 def _extract_post_content(content_json: dict) -> tuple[str, list[str]]:
     """Extract text and image keys from Feishu post (rich text) message.
-
+    
     Handles three payload shapes:
     - Direct:    {"title": "...", "content": [[...]]}
     - Localized: {"zh_cn": {"title": "...", "content": [...]}}
@@ -189,7 +189,7 @@ def _extract_post_content(content_json: dict) -> tuple[str, list[str]]:
                 tag = el.get("tag")
                 if tag in ("text", "a"):
                     texts.append(el.get("text", ""))
-                elif tag == "at":
+                    elif tag == "at":
                     texts.append(f"@{el.get('user_name', 'user')}")
                 elif tag == "code_block":
                     lang = el.get("language", "")
@@ -211,7 +211,7 @@ def _extract_post_content(content_json: dict) -> tuple[str, list[str]]:
         text, imgs = _parse_block(root)
         if text or imgs:
             return text or "", imgs
-
+    
     # Localized: prefer known locales, then fall back to any dict child
     for key in ("zh_cn", "en_us", "ja_jp"):
         if key in root:
@@ -223,13 +223,13 @@ def _extract_post_content(content_json: dict) -> tuple[str, list[str]]:
             text, imgs = _parse_block(val)
             if text or imgs:
                 return text or "", imgs
-
+    
     return "", []
 
 
 def _extract_post_text(content_json: dict) -> str:
     """Extract plain text from Feishu post (rich text) message content.
-
+    
     Legacy wrapper for _extract_post_content, returns only text.
     """
     text, _ = _extract_post_content(content_json)
@@ -253,15 +253,15 @@ class FeishuConfig(Base):
 class FeishuChannel(BaseChannel):
     """
     Feishu/Lark channel using WebSocket long connection.
-
+    
     Uses WebSocket to receive events - no public IP or webhook required.
-
+    
     Requires:
     - App ID and App Secret from Feishu Open Platform
     - Bot capability enabled
     - Event subscription enabled (im.message.receive_v1)
     """
-
+    
     name = "feishu"
     display_name = "Feishu"
 
@@ -291,15 +291,14 @@ class FeishuChannel(BaseChannel):
         if not FEISHU_AVAILABLE:
             logger.error("Feishu SDK not installed. Run: pip install lark-oapi")
             return
-
+        
         if not self.config.app_id or not self.config.app_secret:
             logger.error("Feishu app_id and app_secret not configured")
             return
-
-        import lark_oapi as lark
+        
         self._running = True
         self._loop = asyncio.get_running_loop()
-
+        
         # Create Lark client for sending messages
         self._client = lark.Client.builder() \
             .app_id(self.config.app_id) \
@@ -332,45 +331,33 @@ class FeishuChannel(BaseChannel):
             event_handler=event_handler,
             log_level=lark.LogLevel.INFO
         )
-
-        # Start WebSocket client in a separate thread with reconnect loop.
-        # A dedicated event loop is created for this thread so that lark_oapi's
-        # module-level `loop = asyncio.get_event_loop()` picks up an idle loop
-        # instead of the already-running main asyncio loop, which would cause
-        # "This event loop is already running" errors.
+        
+        # Start WebSocket client in a separate thread with reconnect loop
         def run_ws():
-            import time
-            import lark_oapi.ws.client as _lark_ws_client
-            ws_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(ws_loop)
-            # Patch the module-level loop used by lark's ws Client.start()
-            _lark_ws_client.loop = ws_loop
-            try:
-                while self._running:
-                    try:
-                        self._ws_client.start()
-                    except Exception as e:
-                        logger.warning("Feishu WebSocket error: {}", e)
-                    if self._running:
-                        time.sleep(5)
-            finally:
-                ws_loop.close()
-
+            while self._running:
+                try:
+                    self._ws_client.start()
+                except Exception as e:
+                    logger.warning("Feishu WebSocket error: {}", e)
+                if self._running:
+                    import time
+                    time.sleep(5)
+        
         self._ws_thread = threading.Thread(target=run_ws, daemon=True)
         self._ws_thread.start()
-
+        
         logger.info("Feishu bot started with WebSocket long connection")
         logger.info("No public IP required - using WebSocket to receive events")
-
+        
         # Keep running until stopped
         while self._running:
             await asyncio.sleep(1)
-
+    
     async def stop(self) -> None:
         """
         Stop the Feishu bot.
 
-        Notice: lark.ws.Client does not expose stop method， simply exiting the program will close the client.
+        Notice: lark.ws.Client does not expose stop method, simply exiting the program will close the client.
 
         Reference: https://github.com/larksuite/oapi-sdk-python/blob/v2_main/lark_oapi/ws/client.py#L86
         """
@@ -409,9 +396,9 @@ class FeishuChannel(BaseChannel):
                     .reaction_type(Emoji.builder().emoji_type(emoji_type).build())
                     .build()
                 ).build()
-
+            
             response = self._client.im.v1.message_reaction.create(request)
-
+            
             if not response.success():
                 logger.warning("Failed to add reaction: code={}, msg={}", response.code, response.msg)
             else:
@@ -422,15 +409,15 @@ class FeishuChannel(BaseChannel):
     async def _add_reaction(self, message_id: str, emoji_type: str = "THUMBSUP") -> None:
         """
         Add a reaction emoji to a message (non-blocking).
-
+        
         Common emoji types: THUMBSUP, OK, EYES, DONE, OnIt, HEART
         """
         if not self._client:
             return
-
+        
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._add_reaction_sync, message_id, emoji_type)
-
+    
     # Regex to match markdown tables (header + separator + data rows)
     _TABLE_RE = re.compile(
         r"((?:^[ \t]*\|.+\|[ \t]*\n)(?:^[ \t]*\|[-:\s|]+\|[ \t]*\n)(?:^[ \t]*\|.+\|[ \t]*\n?)+)",

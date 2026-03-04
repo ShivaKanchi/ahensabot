@@ -16,9 +16,12 @@ from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 from nanobot.providers.registry import find_by_model, find_gateway
 
 # Standard chat-completion message keys.
-_ALLOWED_MSG_KEYS = frozenset({"role", "content", "tool_calls", "tool_call_id", "name", "reasoning_content"})
+_ALLOWED_MSG_KEYS = frozenset(
+    {"role", "content", "tool_calls", "tool_call_id", "name", "reasoning_content"}
+)
 _ANTHROPIC_EXTRA_KEYS = frozenset({"thinking_blocks"})
 _ALNUM = string.ascii_letters + string.digits
+
 
 def _short_tool_id() -> str:
     """Generate a 9-char alphanumeric ID compatible with all providers (incl. Mistral)."""
@@ -28,7 +31,7 @@ def _short_tool_id() -> str:
 class LiteLLMProvider(LLMProvider):
     """
     LLM provider using LiteLLM for multi-provider support.
-    
+
     Supports OpenRouter, Anthropic, OpenAI, Gemini, MiniMax, and many other providers through
     a unified interface.  Provider-specific logic is driven by the registry
     (see providers/registry.py) — no if-elif chains needed here.
@@ -102,14 +105,18 @@ class LiteLLMProvider(LLMProvider):
         # Standard mode: auto-prefix for known providers
         spec = find_by_model(model)
         if spec and spec.litellm_prefix:
-            model = self._canonicalize_explicit_prefix(model, spec.name, spec.litellm_prefix)
+            model = self._canonicalize_explicit_prefix(
+                model, spec.name, spec.litellm_prefix
+            )
             if not any(model.startswith(s) for s in spec.skip_prefixes):
                 model = f"{spec.litellm_prefix}/{model}"
 
         return model
 
     @staticmethod
-    def _canonicalize_explicit_prefix(model: str, spec_name: str, canonical_prefix: str) -> str:
+    def _canonicalize_explicit_prefix(
+        model: str, spec_name: str, canonical_prefix: str
+    ) -> str:
         """Normalize explicit provider prefixes like `github-copilot/...`."""
         if "/" not in model:
             return model
@@ -143,9 +150,12 @@ class LiteLLMProvider(LLMProvider):
         def _mark(msg: dict[str, Any]) -> dict[str, Any]:
             content = msg.get("content")
             if isinstance(content, str):
-                return {**msg, "content": [
-                    {"type": "text", "text": content, "cache_control": cache_marker}
-                ]}
+                return {
+                    **msg,
+                    "content": [
+                        {"type": "text", "text": content, "cache_control": cache_marker}
+                    ],
+                }
             elif isinstance(content, list) and content:
                 new_content = list(content)
                 new_content[-1] = {**new_content[-1], "cache_control": cache_marker}
@@ -181,7 +191,11 @@ class LiteLLMProvider(LLMProvider):
     def _extra_msg_keys(original_model: str, resolved_model: str) -> frozenset[str]:
         """Return provider-specific extra keys to preserve in request messages."""
         spec = find_by_model(original_model) or find_by_model(resolved_model)
-        if (spec and spec.name == "anthropic") or "claude" in original_model.lower() or resolved_model.startswith("anthropic/"):
+        if (
+            (spec and spec.name == "anthropic")
+            or "claude" in original_model.lower()
+            or resolved_model.startswith("anthropic/")
+        ):
             return _ANTHROPIC_EXTRA_KEYS
         return frozenset()
 
@@ -195,7 +209,9 @@ class LiteLLMProvider(LLMProvider):
         return hashlib.sha1(tool_call_id.encode()).hexdigest()[:9]
 
     @staticmethod
-    def _sanitize_messages(messages: list[dict[str, Any]], extra_keys: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
+    def _sanitize_messages(
+        messages: list[dict[str, Any]], extra_keys: frozenset[str] = frozenset()
+    ) -> list[dict[str, Any]]:
         """Strip non-standard keys and ensure assistant messages have a content key."""
         allowed = _ALLOWED_MSG_KEYS | extra_keys
         sanitized = LLMProvider._sanitize_request_messages(messages, allowed)
@@ -204,7 +220,9 @@ class LiteLLMProvider(LLMProvider):
         def map_id(value: Any) -> Any:
             if not isinstance(value, str):
                 return value
-            return id_map.setdefault(value, LiteLLMProvider._normalize_tool_call_id(value))
+            return id_map.setdefault(
+                value, LiteLLMProvider._normalize_tool_call_id(value)
+            )
 
         for clean in sanitized:
             # Keep assistant tool_calls[].id and tool tool_call_id in sync after
@@ -251,7 +269,8 @@ class LiteLLMProvider(LLMProvider):
         kwargs: dict[str, Any] = {
             "model": resolved,
             "messages": self._sanitize_messages(
-                self._sanitize_empty_content(messages), extra_keys=extra_msg_keys,
+                self._sanitize_empty_content(messages),
+                extra_keys=extra_msg_keys,
             ),
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -294,8 +313,13 @@ class LiteLLMProvider(LLMProvider):
     ) -> LLMResponse:
         """Send a chat completion request via LiteLLM."""
         kwargs, _ = self._build_chat_kwargs(
-            messages, tools, model, max_tokens, temperature,
-            reasoning_effort, tool_choice,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            reasoning_effort,
+            tool_choice,
         )
         try:
             response = await acompletion(**kwargs)
@@ -319,8 +343,13 @@ class LiteLLMProvider(LLMProvider):
     ) -> LLMResponse:
         """Stream a chat completion via LiteLLM, forwarding text deltas."""
         kwargs, _ = self._build_chat_kwargs(
-            messages, tools, model, max_tokens, temperature,
-            reasoning_effort, tool_choice,
+            messages,
+            tools,
+            model,
+            max_tokens,
+            temperature,
+            reasoning_effort,
+            tool_choice,
         )
         kwargs["stream"] = True
 
@@ -336,7 +365,8 @@ class LiteLLMProvider(LLMProvider):
                         await on_content_delta(text)
 
             full_response = litellm.stream_chunk_builder(
-                chunks, messages=kwargs["messages"],
+                chunks,
+                messages=kwargs["messages"],
             )
             return self._parse_response(full_response)
         except Exception as e:
@@ -365,8 +395,11 @@ class LiteLLMProvider(LLMProvider):
                 content = msg.content
 
         if len(response.choices) > 1:
-            logger.debug("LiteLLM response has {} choices, merged {} tool_calls",
-                         len(response.choices), len(raw_tool_calls))
+            logger.debug(
+                "LiteLLM response has {} choices, merged {} tool_calls",
+                len(response.choices),
+                len(raw_tool_calls),
+            )
 
         tool_calls = []
         for tc in raw_tool_calls:
@@ -375,18 +408,22 @@ class LiteLLMProvider(LLMProvider):
             if isinstance(args, str):
                 args = json_repair.loads(args)
 
-            provider_specific_fields = getattr(tc, "provider_specific_fields", None) or None
+            provider_specific_fields = (
+                getattr(tc, "provider_specific_fields", None) or None
+            )
             function_provider_specific_fields = (
                 getattr(tc.function, "provider_specific_fields", None) or None
             )
 
-            tool_calls.append(ToolCallRequest(
-                id=_short_tool_id(),
-                name=tc.function.name,
-                arguments=args,
-                provider_specific_fields=provider_specific_fields,
-                function_provider_specific_fields=function_provider_specific_fields,
-            ))
+            tool_calls.append(
+                ToolCallRequest(
+                    id=_short_tool_id(),
+                    name=tc.function.name,
+                    arguments=args,
+                    provider_specific_fields=provider_specific_fields,
+                    function_provider_specific_fields=function_provider_specific_fields,
+                )
+            )
 
         usage = {}
         if hasattr(response, "usage") and response.usage:
