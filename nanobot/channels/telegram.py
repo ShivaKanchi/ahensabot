@@ -404,6 +404,34 @@ class TelegramChannel(BaseChannel):
                 reply_params = ReplyParameters(
                     message_id=reply_to_message_id, allow_sending_without_reply=True
                 )
+        message_thread_id = msg.metadata.get("message_thread_id")
+        if not isinstance(message_thread_id, int):
+            message_thread_id = None
+
+        # Stream partial progress via Telegram Bot API sendMessageDraft (Bot API 9.3+).
+        # sendMessageDraft supports private chats only.
+        if (
+            msg.metadata.get("_progress")
+            and msg.content
+            and msg.content != "[empty message]"
+            and chat_id > 0
+        ):
+            draft_id = msg.metadata.get("message_id")
+            if not isinstance(draft_id, int) or draft_id <= 0:
+                draft_id = int(time.time() * 1000) % 2_000_000_000 or 1
+
+            html = _markdown_to_telegram_html(msg.content)
+            if len(html) > 4096:
+                html = html[:4096]
+
+            sent = await self._send_message_draft(
+                chat_id=chat_id,
+                draft_id=draft_id,
+                text=html,
+                message_thread_id=message_thread_id,
+            )
+            if sent:
+                return
 
         # Send media files
         for media_path in msg.media or []:
@@ -447,6 +475,7 @@ class TelegramChannel(BaseChannel):
                 await self._app.bot.send_message(
                     chat_id=chat_id,
                     text=f"[Failed to send: {filename}]",
+                    message_thread_id=message_thread_id,
                     reply_parameters=reply_params,
                     **thread_kwargs,
                 )
