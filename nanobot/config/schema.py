@@ -13,6 +13,7 @@ class Base(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
+
 class ChannelsConfig(Base):
     """Configuration for chat channels.
 
@@ -42,7 +43,9 @@ class AgentDefaults(Base):
     context_window_tokens: int = 65_536
     temperature: float = 0.1
     max_tool_iterations: int = 40
-    reasoning_effort: str | None = None  # low / medium / high - enables LLM thinking mode
+    reasoning_effort: str | None = (
+        None  # low / medium / high - enables LLM thinking mode
+    )
 
 
 class AgentsConfig(Base):
@@ -64,8 +67,12 @@ class ProviderConfig(Base):
 class ProvidersConfig(Base):
     """Configuration for LLM providers."""
 
-    custom: ProviderConfig = Field(default_factory=ProviderConfig)  # Any OpenAI-compatible endpoint
-    azure_openai: ProviderConfig = Field(default_factory=ProviderConfig)  # Azure OpenAI (model = deployment name)
+    custom: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # Any OpenAI-compatible endpoint
+    azure_openai: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # Azure OpenAI (model = deployment name)
     anthropic: ProviderConfig = Field(default_factory=ProviderConfig)
     openai: ProviderConfig = Field(default_factory=ProviderConfig)
     openrouter: ProviderConfig = Field(default_factory=ProviderConfig)
@@ -74,20 +81,40 @@ class ProvidersConfig(Base):
     zhipu: ProviderConfig = Field(default_factory=ProviderConfig)
     dashscope: ProviderConfig = Field(default_factory=ProviderConfig)
     vllm: ProviderConfig = Field(default_factory=ProviderConfig)
-    ollama: ProviderConfig = Field(default_factory=ProviderConfig)  # Ollama local models
-    ovms: ProviderConfig = Field(default_factory=ProviderConfig)  # OpenVINO Model Server (OVMS)
+    ollama: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # Ollama local models
+    ovms: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # OpenVINO Model Server (OVMS)
     gemini: ProviderConfig = Field(default_factory=ProviderConfig)
     moonshot: ProviderConfig = Field(default_factory=ProviderConfig)
     minimax: ProviderConfig = Field(default_factory=ProviderConfig)
     mistral: ProviderConfig = Field(default_factory=ProviderConfig)
-    aihubmix: ProviderConfig = Field(default_factory=ProviderConfig)  # AiHubMix API gateway
-    siliconflow: ProviderConfig = Field(default_factory=ProviderConfig)  # SiliconFlow (硅基流动)
-    volcengine: ProviderConfig = Field(default_factory=ProviderConfig)  # VolcEngine (火山引擎)
-    volcengine_coding_plan: ProviderConfig = Field(default_factory=ProviderConfig)  # VolcEngine Coding Plan
-    byteplus: ProviderConfig = Field(default_factory=ProviderConfig)  # BytePlus (VolcEngine international)
-    byteplus_coding_plan: ProviderConfig = Field(default_factory=ProviderConfig)  # BytePlus Coding Plan
-    openai_codex: ProviderConfig = Field(default_factory=ProviderConfig, exclude=True)  # OpenAI Codex (OAuth)
-    github_copilot: ProviderConfig = Field(default_factory=ProviderConfig, exclude=True)  # Github Copilot (OAuth)
+    aihubmix: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # AiHubMix API gateway
+    siliconflow: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # SiliconFlow (硅基流动)
+    volcengine: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # VolcEngine (火山引擎)
+    volcengine_coding_plan: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # VolcEngine Coding Plan
+    byteplus: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # BytePlus (VolcEngine international)
+    byteplus_coding_plan: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # BytePlus Coding Plan
+    openai_codex: ProviderConfig = Field(
+        default_factory=ProviderConfig, exclude=True
+    )  # OpenAI Codex (OAuth)
+    github_copilot: ProviderConfig = Field(
+        default_factory=ProviderConfig, exclude=True
+    )  # Github Copilot (OAuth)
 
 
 class HeartbeatConfig(Base):
@@ -134,17 +161,23 @@ class ExecToolConfig(Base):
     timeout: int = 60
     path_append: str = ""
 
+
 class MCPServerConfig(Base):
     """MCP server connection configuration (stdio or HTTP)."""
 
-    type: Literal["stdio", "sse", "streamableHttp"] | None = None  # auto-detected if omitted
+    type: Literal["stdio", "sse", "streamableHttp"] | None = (
+        None  # auto-detected if omitted
+    )
     command: str = ""  # Stdio: command to run (e.g. "npx")
     args: list[str] = Field(default_factory=list)  # Stdio: command arguments
     env: dict[str, str] = Field(default_factory=dict)  # Stdio: extra env vars
     url: str = ""  # HTTP/SSE: endpoint URL
     headers: dict[str, str] = Field(default_factory=dict)  # HTTP/SSE: custom headers
     tool_timeout: int = 30  # seconds before a tool call is cancelled
-    enabled_tools: list[str] = Field(default_factory=lambda: ["*"])  # Only register these tools; accepts raw MCP names or wrapped mcp_<server>_<tool> names; ["*"] = all tools; [] = no tools
+    enabled_tools: list[str] = Field(
+        default_factory=lambda: ["*"]
+    )  # Only register these tools; accepts raw MCP names or wrapped mcp_<server>_<tool> names; ["*"] = all tools; [] = no tools
+
 
 class ToolsConfig(Base):
     """Tools configuration."""
@@ -171,9 +204,6 @@ class Config(BaseSettings):
         """Get expanded workspace path."""
         return Path(self.agents.defaults.workspace).expanduser()
 
-    def _match_provider(
-        self, model: str | None = None
-    ) -> tuple["ProviderConfig | None", str | None]:
     def _match_provider(
         self, model: str | None = None
     ) -> tuple["ProviderConfig | None", str | None]:
@@ -222,7 +252,10 @@ class Config(BaseSettings):
             p = getattr(self.providers, spec.name, None)
             if not (p and p.api_base):
                 continue
-            if spec.detect_by_base_keyword and spec.detect_by_base_keyword in p.api_base:
+            if (
+                spec.detect_by_base_keyword
+                and spec.detect_by_base_keyword in p.api_base
+            ):
                 return p, spec.name
             if local_fallback is None:
                 local_fallback = (p, spec.name)
