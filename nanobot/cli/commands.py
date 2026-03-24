@@ -4,6 +4,7 @@ import asyncio
 from contextlib import contextmanager, nullcontext
 
 import os
+import sys
 import signal
 import select
 from pathlib import Path
